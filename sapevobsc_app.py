@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import mimetypes
 from pathlib import Path
 
@@ -25,7 +26,9 @@ from sapevobsc.core import (
     OPPORTUNITY_MATRIX,
     THREAT_MATRIX,
     build_pairwise_matrix,
+    consolidate_project_weights,
     consolidate_sapevo_weights,
+    project_label,
     rank_projects,
     strategic_conclusion,
 )
@@ -57,6 +60,7 @@ def init_state() -> None:
             ]
         ),
         "weights": pd.DataFrame(),
+        "project_weights": pd.DataFrame(),
         "ranking": pd.DataFrame(),
     }
     for key, value in defaults.items():
@@ -144,8 +148,9 @@ def render_cover() -> None:
                 <li>Cadastre os avaliadores que participarão da comparação SAPEVO-M.</li>
                 <li>Compare as perspectivas par-a-par usando a escala ordinal de -3 a +3.</li>
                 <li>Cadastre projetos, objetivos ou KPIs e associe cada um a uma perspectiva BSC.</li>
+                <li>Compare os projetos/KPIs dentro de cada perspectiva BSC.</li>
                 <li>Avalie impacto e probabilidade de cada projeto.</li>
-                <li>Consolide para obter pesos, ranking e relatório PDF.</li>
+                <li>Consolide para obter pesos compostos, ranking e relatório PDF.</li>
             </ol>
         </details>
         """,
@@ -188,7 +193,8 @@ def evaluator_inputs() -> None:
 
 
 def comparison_inputs() -> list[pd.DataFrame]:
-    st.subheader("Comparacao SAPEVO-M das perspectivas")
+    st.subheader("Comparacao SAPEVO-M das perspectivas BSC")
+    st.caption("Primeiro ciclo SAPEVO-M: define o peso estrategico das perspectivas BSC.")
     perspectives = st.session_state.perspectives
     if len(perspectives) < 2:
         st.warning("Informe ao menos duas perspectivas.")
@@ -214,6 +220,11 @@ def comparison_inputs() -> list[pd.DataFrame]:
     return matrices
 
 
+def stable_key(*parts: object) -> str:
+    raw = "|".join(str(part) for part in parts)
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()
+
+
 def project_table_inputs() -> pd.DataFrame:
     st.subheader("Projetos estrategicos")
     st.caption("Cadastre projetos, objetivos/KPIs, perspectiva BSC, impacto e probabilidade.")
@@ -233,6 +244,53 @@ def project_table_inputs() -> pd.DataFrame:
     )
     st.session_state.projects = edited
     return edited
+
+
+def project_comparison_inputs(projects: pd.DataFrame) -> dict[str, list[pd.DataFrame]]:
+    st.subheader("Comparacao SAPEVO-M dos projetos/KPIs")
+    st.caption("Segundo ciclo SAPEVO-M: compara os projetos ou KPIs dentro de cada perspectiva BSC.")
+    if projects.empty:
+        st.warning("Cadastre projetos antes de comparar projetos/KPIs.")
+        return {}
+
+    labels_by_perspective = {}
+    for perspective, group in projects.groupby("Perspectiva", dropna=False):
+        labels = [project_label(row) or f"Item {index + 1}" for index, row in group.reset_index(drop=True).iterrows()]
+        if labels:
+            labels_by_perspective[str(perspective)] = labels
+
+    matrices_by_perspective: dict[str, list[pd.DataFrame]] = {}
+    labels = list(SAPEVO_SCALE)
+    reverse_scale = {value: label for label, value in SAPEVO_SCALE.items()}
+
+    for perspective in st.session_state.perspectives:
+        items = labels_by_perspective.get(perspective, [])
+        if not items:
+            continue
+        with st.expander(f"{perspective}: {len(items)} projeto(s)/KPI(s)", expanded=False):
+            if len(items) == 1:
+                st.info("Ha apenas um projeto/KPI nesta perspectiva; o peso local sera 100%.")
+                matrices_by_perspective[perspective] = []
+                continue
+
+            evaluator_matrices = []
+            for evaluator in st.session_state.evaluators:
+                st.markdown(f"**{evaluator}**")
+                comparisons = {}
+                for i, item_i in enumerate(items):
+                    for item_j in items[i + 1 :]:
+                        key = f"project_sapevo_{stable_key(evaluator, perspective, item_i, item_j)}"
+                        label = st.select_slider(
+                            f"{item_i} em relacao a {item_j}",
+                            options=labels,
+                            value=reverse_scale[0],
+                            key=key,
+                        )
+                        comparisons[(item_i, item_j)] = SAPEVO_SCALE[label]
+                evaluator_matrices.append(build_pairwise_matrix(items, comparisons))
+            matrices_by_perspective[perspective] = evaluator_matrices
+
+    return matrices_by_perspective
 
 
 def render_impact_probability_matrix() -> None:
@@ -355,18 +413,22 @@ def main() -> None:
     project_inputs()
     perspective_inputs()
     evaluator_inputs()
-    matrices = comparison_inputs()
-    render_impact_probability_matrix()
+    perspective_matrices = comparison_inputs()
     projects = project_table_inputs()
+    project_matrices = project_comparison_inputs(projects)
+    render_impact_probability_matrix()
 
     if st.button("Consolidar SAPEVO-BSC", type="primary"):
-        weight_result = consolidate_sapevo_weights(matrices)
-        ranking = rank_projects(projects, weight_result.weights)
+        weight_result = consolidate_sapevo_weights(perspective_matrices)
+        project_weight_result = consolidate_project_weights(projects, weight_result.weights, project_matrices)
+        ranking = rank_projects(projects, weight_result.weights, project_weight_result.project_weights)
         st.session_state.weights = weight_result.weights
+        st.session_state.project_weights = project_weight_result.project_weights
         st.session_state.ranking = ranking
         st.success("Consolidacao realizada.")
 
     weights = st.session_state.weights
+    project_weights = st.session_state.project_weights
     ranking = st.session_state.ranking
     if not weights.empty:
         st.divider()
@@ -377,12 +439,17 @@ def main() -> None:
         with col2:
             st.markdown(radar_svg(weights), unsafe_allow_html=True)
 
+    if not project_weights.empty:
+        st.subheader("Pesos SAPEVO-BSC dos projetos/KPIs")
+        st.caption("Peso final = peso da perspectiva BSC x peso local do projeto/KPI dentro da perspectiva.")
+        st.dataframe(project_weights, use_container_width=True, hide_index=True)
+
     if not ranking.empty:
         st.subheader("Ranking dos projetos estrategicos")
         st.dataframe(ranking, use_container_width=True, hide_index=True)
         st.info(strategic_conclusion(ranking, weights))
 
-        report = pdf_bytes(project=st.session_state.project, weights=weights, ranking=ranking)
+        report = pdf_bytes(project=st.session_state.project, weights=weights, project_weights=project_weights, ranking=ranking)
         st.download_button(
             "Baixar relatorio PDF",
             data=report,
