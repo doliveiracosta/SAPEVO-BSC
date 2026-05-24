@@ -9,15 +9,17 @@ Artigo de referencia: https://www.researchgate.net/publication/390109234_SAPEVO-
 ## Fluxo metodologico
 
 1. Registrar o projeto, horizonte e visao do negocio.
-2. Usar as quatro perspectivas BSC como estrutura fixa interna do metodo.
-3. Definir a quantidade de objetivos estrategicos/KPIs e associar cada objetivo a uma perspectiva BSC.
-4. Definir a quantidade de acoes/projetos estrategicos e vincular cada item a um objetivo estrategico/KPI.
-5. Cadastrar avaliadores.
-6. Comparar perspectivas por escala ordinal SAPEVO-M.
-7. Comparar objetivos/KPIs dentro de cada perspectiva por escala ordinal SAPEVO-M.
-8. Consolidar pesos das perspectivas e pesos SAPEVO-BSC dos objetivos/KPIs.
-9. Avaliar impacto e probabilidade das acoes/projetos.
-10. Calcular ranking de prioridade e exportar relatorio PDF.
+2. Identificar as acoes/projetos que precisam ser executados.
+3. Avaliar preliminarmente cada acao/projeto quanto a importancia e alinhamento com a visao do negocio.
+4. Usar as quatro perspectivas BSC como criterios do metodo.
+5. Definir os objetivos/indicadores estrategicos e associar cada um a uma perspectiva BSC.
+6. Vincular cada acao/projeto ao objetivo/indicador estrategico correspondente.
+7. Cadastrar decisores/avaliadores.
+8. Comparar perspectivas por escala ordinal SAPEVO-M.
+9. Comparar objetivos/KPIs dentro de cada perspectiva por escala ordinal SAPEVO-M.
+10. Consolidar pesos das perspectivas e pesos SAPEVO-BSC dos objetivos/KPIs.
+11. Avaliar impacto e probabilidade das acoes/projetos.
+12. Calcular ranking de prioridade e exportar relatorio PDF.
 
 ## Formula operacional
 
