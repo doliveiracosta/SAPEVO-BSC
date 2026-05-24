@@ -1,25 +1,29 @@
 # SAPEVO-BSC Prioritizer
 
-Plataforma web para priorizacao de projetos estrategicos combinando Balanced Scorecard, SAPEVO-M e matriz Impacto/Probabilidade.
+Plataforma web para priorizacao de acoes e projetos estrategicos combinando Balanced Scorecard, SAPEVO-M e matriz Impacto/Probabilidade.
 
 Desenvolvido por David de Oliveira Costa, Doutorando em Engenharia de Computacao, 2026.
 
+Artigo de referencia: https://www.researchgate.net/publication/390109234_SAPEVO-BSC_Multicriteria_Method
+
 ## Fluxo metodologico
 
-1. Definir perspectivas BSC.
-2. Cadastrar avaliadores.
-3. Comparar perspectivas por escala ordinal SAPEVO-M.
-4. Consolidar pesos das perspectivas.
-5. Cadastrar projetos, objetivos ou KPIs.
-6. Comparar projetos/KPIs dentro de cada perspectiva por SAPEVO-M.
-7. Combinar peso da perspectiva com peso local do projeto/KPI.
-8. Avaliar impacto e probabilidade.
-9. Calcular ranking de prioridade e exportar relatorio PDF.
+1. Registrar o projeto, horizonte e visao do negocio.
+2. Cadastrar objetivos estrategicos e associa-los as perspectivas BSC.
+3. Cadastrar acoes/projetos estrategicos.
+4. Distribuir fuzzy o alinhamento de cada acao/projeto entre os objetivos estrategicos, com soma 1,00.
+5. Cadastrar avaliadores.
+6. Comparar perspectivas por escala ordinal SAPEVO-M.
+7. Consolidar pesos das perspectivas e pesos globais dos objetivos.
+8. Calcular o peso SAPEVO-BSC de cada acao/projeto pela particao fuzzy ponderada.
+9. Avaliar impacto e probabilidade.
+10. Calcular ranking de prioridade e exportar relatorio PDF.
 
 ## Formula operacional
 
 ```text
-Peso SAPEVO-BSC do projeto = Peso da perspectiva x Peso local do projeto/KPI
+Peso do objetivo = Peso da perspectiva BSC x Peso relativo normalizado do objetivo
+Peso SAPEVO-BSC do projeto = soma(pertinencia fuzzy ao objetivo x Peso do objetivo)
 Indice de prioridade = Peso SAPEVO-BSC do projeto x Impacto x Probabilidade
 ```
 

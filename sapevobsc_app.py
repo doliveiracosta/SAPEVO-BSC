@@ -26,7 +26,8 @@ from sapevobsc.core import (
     OPPORTUNITY_MATRIX,
     THREAT_MATRIX,
     build_pairwise_matrix,
-    consolidate_project_weights,
+    compute_objective_weights,
+    consolidate_fuzzy_project_weights,
     consolidate_sapevo_weights,
     project_label,
     rank_projects,
@@ -34,11 +35,24 @@ from sapevobsc.core import (
 )
 from sapevobsc.report import pdf_bytes
 
+PAPER_URL = "https://www.researchgate.net/publication/390109234_SAPEVO-BSC_Multicriteria_Method"
+
 
 def asset_data_uri(path: Path) -> str:
     mime_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
     encoded = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
+
+
+def asset_path(*names: str) -> Path | None:
+    base = Path(__file__).resolve().parent
+    search_dirs = [base / "assets", Path.cwd() / "assets", Path("assets")]
+    for directory in search_dirs:
+        for name in names:
+            candidate = directory / name
+            if candidate.exists():
+                return candidate
+    return None
 
 
 def init_state() -> None:
@@ -48,18 +62,29 @@ def init_state() -> None:
             "Organizacao": "",
             "Responsavel": "",
             "Horizonte estrategico": "12 meses",
+            "Visao do negocio": "",
         },
         "perspectives": BSC_PERSPECTIVES.copy(),
         "evaluators": ["Avaliador 1", "Avaliador 2", "Avaliador 3"],
+        "objectives": pd.DataFrame(
+            [
+                {"Objetivo estrategico": "Aumentar rentabilidade", "Perspectiva": "Financeira", "Peso relativo": 1.0, "Descricao": "Elevar retorno e sustentabilidade financeira"},
+                {"Objetivo estrategico": "Melhorar satisfacao do cliente", "Perspectiva": "Clientes", "Peso relativo": 1.0, "Descricao": "Ampliar qualidade percebida e fidelizacao"},
+                {"Objetivo estrategico": "Otimizar processos internos", "Perspectiva": "Processos Internos", "Peso relativo": 1.0, "Descricao": "Reduzir gargalos e aumentar eficiencia operacional"},
+                {"Objetivo estrategico": "Desenvolver capacidades organizacionais", "Perspectiva": "Aprendizado e Crescimento", "Peso relativo": 1.0, "Descricao": "Fortalecer pessoas, tecnologia e aprendizagem"},
+            ]
+        ),
         "projects": pd.DataFrame(
             [
-                {"Projeto": "P1", "Objetivo/KPI": "KPI 1", "Perspectiva": "Financeira", "Natureza": "Oportunidade", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
-                {"Projeto": "P2", "Objetivo/KPI": "KPI 2", "Perspectiva": "Clientes", "Natureza": "Ameaca", "Impacto": "Alto", "Probabilidade": "Moderado"},
-                {"Projeto": "P3", "Objetivo/KPI": "KPI 3", "Perspectiva": "Processos Internos", "Natureza": "Oportunidade", "Impacto": "Moderado", "Probabilidade": "Alto"},
-                {"Projeto": "P4", "Objetivo/KPI": "KPI 4", "Perspectiva": "Aprendizado e Crescimento", "Natureza": "Ameaca", "Impacto": "Baixo", "Probabilidade": "Muito alto"},
+                {"Acao/Projeto": "P1", "Natureza": "Oportunidade", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
+                {"Acao/Projeto": "P2", "Natureza": "Ameaca", "Impacto": "Alto", "Probabilidade": "Moderado"},
+                {"Acao/Projeto": "P3", "Natureza": "Oportunidade", "Impacto": "Moderado", "Probabilidade": "Alto"},
+                {"Acao/Projeto": "P4", "Natureza": "Ameaca", "Impacto": "Baixo", "Probabilidade": "Muito alto"},
             ]
         ),
         "weights": pd.DataFrame(),
+        "objective_weights": pd.DataFrame(),
+        "fuzzy_alignment": pd.DataFrame(),
         "project_weights": pd.DataFrame(),
         "ranking": pd.DataFrame(),
     }
@@ -113,23 +138,29 @@ def render_cover() -> None:
         .usage-guide summary::-webkit-details-marker { display: none; }
         .usage-guide ol { margin: 0.75rem 0 0; padding-left: 1.25rem; line-height: 1.45; }
         .usage-guide li { margin-bottom: 0.42rem; }
+        .paper-reference a {
+            color: #6b7280;
+            text-decoration: none;
+            font-size: 0.92rem;
+        }
+        .paper-reference a:hover { color: #2563eb; }
         </style>
         """,
         unsafe_allow_html=True,
     )
-    logo_upe = Path("assets/logo_upe.jfif")
-    logo_poli = Path("assets/logo_upe_poli.png")
-    logo_ppgec = Path("assets/logo_ppgec.png")
+    logo_upe = asset_path("logo_upe.png", "logo_upe.jpg", "logo_upe.jpeg", "logo_upe.jfif")
+    logo_poli = asset_path("logo_upe_poli.png", "logo_poli.png")
+    logo_ppgec = asset_path("logo_ppgec.png")
     logo_items = []
-    if logo_upe.exists():
+    if logo_upe:
         logo_items.append(f'<img class="logo-upe" src="{asset_data_uri(logo_upe)}" alt="UPE">')
     else:
         logo_items.append('<span class="institutional-logo-fallback">UPE</span>')
-    if logo_poli.exists():
+    if logo_poli:
         logo_items.append(f'<img class="logo-poli" src="{asset_data_uri(logo_poli)}" alt="POLI">')
     else:
         logo_items.append('<span class="institutional-logo-fallback">POLI</span>')
-    if logo_ppgec.exists():
+    if logo_ppgec:
         logo_items.append(f'<img class="logo-ppgec" src="{asset_data_uri(logo_ppgec)}" alt="PPGEC">')
     else:
         logo_items.append('<span class="institutional-logo-fallback">PPGEC</span>')
@@ -140,15 +171,20 @@ def render_cover() -> None:
     st.markdown(f"**{APP_OWNER_LABEL}**")
     st.caption("Metodo multicriterio para priorizacao de projetos estrategicos com BSC, SAPEVO-M e matriz Impacto/Probabilidade.")
     st.markdown(
+        f'<div class="paper-reference"><a href="{PAPER_URL}" target="_blank">Artigo de referência: SAPEVO-BSC Multicriteria Method</a></div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
         """
         <details class="usage-guide">
             <summary>Como utilizar a plataforma</summary>
             <ol>
-                <li>Preencha os dados do projeto e confirme as perspectivas BSC.</li>
+                <li>Preencha os dados do projeto, incluindo a visão do negócio.</li>
+                <li>Cadastre os objetivos estratégicos, seus pesos relativos e suas perspectivas BSC.</li>
+                <li>Cadastre ações/projetos estratégicos.</li>
+                <li>Distribua fuzzy o alinhamento de cada ação/projeto entre os objetivos, garantindo soma 1,00.</li>
                 <li>Cadastre os avaliadores que participarão da comparação SAPEVO-M.</li>
                 <li>Compare as perspectivas par-a-par usando a escala ordinal de -3 a +3.</li>
-                <li>Cadastre projetos, objetivos ou KPIs e associe cada um a uma perspectiva BSC.</li>
-                <li>Compare os projetos/KPIs dentro de cada perspectiva BSC.</li>
                 <li>Avalie impacto e probabilidade de cada projeto.</li>
                 <li>Consolide para obter pesos compostos, ranking e relatório PDF.</li>
             </ol>
@@ -168,7 +204,33 @@ def project_inputs() -> None:
     with col2:
         project["Responsavel"] = st.text_input("Responsavel", project.get("Responsavel", ""))
         project["Horizonte estrategico"] = st.text_input("Horizonte estrategico", project.get("Horizonte estrategico", "12 meses"))
+    project["Visao do negocio"] = st.text_area("Visao do negocio", project.get("Visao do negocio", ""), height=90)
     st.session_state.project = project
+
+
+def objective_inputs() -> pd.DataFrame:
+    st.subheader("Objetivos estrategicos")
+    st.caption("Cadastre os objetivos que traduzem a visao do negocio e associe cada um a uma perspectiva BSC.")
+    objectives = st.session_state.objectives.copy()
+    if "Perspectiva" not in objectives.columns:
+        objectives["Perspectiva"] = st.session_state.perspectives[0] if st.session_state.perspectives else ""
+    if "Peso relativo" not in objectives.columns:
+        objectives["Peso relativo"] = 1.0
+    edited = st.data_editor(
+        objectives,
+        use_container_width=True,
+        num_rows="dynamic",
+        hide_index=True,
+        column_config={
+            "Objetivo estrategico": st.column_config.TextColumn("Objetivo estrategico", required=True),
+            "Perspectiva": st.column_config.SelectboxColumn("Perspectiva BSC", options=st.session_state.perspectives, required=True),
+            "Peso relativo": st.column_config.NumberColumn("Peso relativo", min_value=0.0, step=0.1, format="%.2f"),
+            "Descricao": st.column_config.TextColumn("Descricao"),
+        },
+    )
+    edited = edited.dropna(how="all").fillna("")
+    st.session_state.objectives = edited
+    return edited
 
 
 def perspective_inputs() -> None:
@@ -225,25 +287,95 @@ def stable_key(*parts: object) -> str:
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
 
 
+def sync_project_columns(projects: pd.DataFrame) -> pd.DataFrame:
+    projects = projects.copy()
+    if "Acao/Projeto" not in projects.columns and "Projeto" in projects.columns:
+        projects["Acao/Projeto"] = projects["Projeto"]
+    projects["Projeto"] = projects.get("Acao/Projeto", "")
+    return projects
+
+
 def project_table_inputs() -> pd.DataFrame:
-    st.subheader("Projetos estrategicos")
-    st.caption("Cadastre projetos, objetivos/KPIs, perspectiva BSC, impacto e probabilidade.")
+    st.subheader("Acoes e projetos estrategicos")
+    st.caption("Cadastre as acoes/projetos. O alinhamento aos objetivos sera definido na particao fuzzy da etapa seguinte.")
+    st.session_state.projects = sync_project_columns(st.session_state.projects)
     if "Natureza" not in st.session_state.projects.columns:
         st.session_state.projects["Natureza"] = "Oportunidade"
     edited = st.data_editor(
-        st.session_state.projects,
+        st.session_state.projects[
+            ["Acao/Projeto", "Natureza", "Impacto", "Probabilidade"]
+        ],
         use_container_width=True,
         num_rows="dynamic",
         hide_index=True,
         column_config={
-            "Perspectiva": st.column_config.SelectboxColumn("Perspectiva", options=st.session_state.perspectives),
+            "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto", required=True),
             "Natureza": st.column_config.SelectboxColumn("Natureza", options=PROJECT_NATURES),
             "Impacto": st.column_config.SelectboxColumn("Impacto", options=list(IMPACT_PROBABILITY_SCALE)),
             "Probabilidade": st.column_config.SelectboxColumn("Probabilidade", options=list(IMPACT_PROBABILITY_SCALE)),
         },
     )
+    edited = sync_project_columns(edited.dropna(how="all").fillna(""))
     st.session_state.projects = edited
     return edited
+
+
+def fuzzy_alignment_inputs(projects: pd.DataFrame, objectives: pd.DataFrame) -> pd.DataFrame:
+    st.subheader("Particao fuzzy entre objetivos estrategicos")
+    st.caption("Distribua a contribuicao de cada acao/projeto entre os objetivos. A soma de cada linha deve ser 1,00.")
+
+    if projects.empty or objectives.empty:
+        st.warning("Cadastre acoes/projetos e objetivos estrategicos antes de preencher a particao fuzzy.")
+        return pd.DataFrame()
+
+    project_names = [str(item).strip() for item in projects["Acao/Projeto"].astype(str).tolist() if str(item).strip()]
+    objective_names = [str(item).strip() for item in objectives["Objetivo estrategico"].astype(str).tolist() if str(item).strip()]
+    if not project_names or not objective_names:
+        return pd.DataFrame()
+
+    previous = st.session_state.fuzzy_alignment.copy() if not st.session_state.fuzzy_alignment.empty else pd.DataFrame()
+    previous_map = {}
+    if not previous.empty and "Acao/Projeto" in previous.columns:
+        for _, row in previous.iterrows():
+            previous_map[str(row.get("Acao/Projeto", ""))] = row
+
+    rows = []
+    for project in project_names:
+        row = {"Acao/Projeto": project}
+        previous_row = previous_map.get(project)
+        for index, objective in enumerate(objective_names):
+            if previous_row is not None and objective in previous_row:
+                value = previous_row.get(objective, 0.0)
+            else:
+                value = 1.0 if index == 0 else 0.0
+            row[objective] = float(value or 0.0)
+        rows.append(row)
+
+    alignment = pd.DataFrame(rows)
+    edited = st.data_editor(
+        alignment,
+        use_container_width=True,
+        hide_index=True,
+        disabled=["Acao/Projeto"],
+        column_config={
+            "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto"),
+            **{
+                objective: st.column_config.NumberColumn(objective, min_value=0.0, max_value=1.0, step=0.05, format="%.2f")
+                for objective in objective_names
+            },
+        },
+    )
+    edited[objective_names] = edited[objective_names].apply(pd.to_numeric, errors="coerce").fillna(0.0).clip(0.0, 1.0)
+    edited["Soma"] = edited[objective_names].sum(axis=1).round(4)
+    invalid = edited[(edited["Soma"] - 1.0).abs() > 0.001]
+    if invalid.empty:
+        st.success("Particao fuzzy valida: todas as acoes/projetos somam 1,00.")
+    else:
+        st.warning("Ajuste a particao fuzzy: cada acao/projeto deve somar 1,00. O calculo normaliza automaticamente, mas a entrada ideal e fechar 100%.")
+        st.dataframe(edited[["Acao/Projeto", "Soma"]], use_container_width=True, hide_index=True)
+
+    st.session_state.fuzzy_alignment = edited.drop(columns=["Soma"])
+    return st.session_state.fuzzy_alignment
 
 
 def project_comparison_inputs(projects: pd.DataFrame) -> dict[str, list[pd.DataFrame]]:
@@ -412,22 +544,26 @@ def main() -> None:
 
     project_inputs()
     perspective_inputs()
+    objectives = objective_inputs()
+    projects = project_table_inputs()
+    fuzzy_alignment = fuzzy_alignment_inputs(projects, objectives)
     evaluator_inputs()
     perspective_matrices = comparison_inputs()
-    projects = project_table_inputs()
-    project_matrices = project_comparison_inputs(projects)
     render_impact_probability_matrix()
 
     if st.button("Consolidar SAPEVO-BSC", type="primary"):
         weight_result = consolidate_sapevo_weights(perspective_matrices)
-        project_weight_result = consolidate_project_weights(projects, weight_result.weights, project_matrices)
-        ranking = rank_projects(projects, weight_result.weights, project_weight_result.project_weights)
+        objective_weights = compute_objective_weights(objectives, weight_result.weights)
+        project_weights = consolidate_fuzzy_project_weights(projects, objective_weights, fuzzy_alignment)
+        ranking = rank_projects(projects, weight_result.weights, project_weights)
         st.session_state.weights = weight_result.weights
-        st.session_state.project_weights = project_weight_result.project_weights
+        st.session_state.objective_weights = objective_weights
+        st.session_state.project_weights = project_weights
         st.session_state.ranking = ranking
         st.success("Consolidacao realizada.")
 
     weights = st.session_state.weights
+    objective_weights = st.session_state.objective_weights
     project_weights = st.session_state.project_weights
     ranking = st.session_state.ranking
     if not weights.empty:
@@ -439,9 +575,14 @@ def main() -> None:
         with col2:
             st.markdown(radar_svg(weights), unsafe_allow_html=True)
 
+    if not objective_weights.empty:
+        st.subheader("Pesos globais dos objetivos estrategicos")
+        st.caption("Peso objetivo = peso da perspectiva BSC x peso relativo normalizado do objetivo dentro da perspectiva.")
+        st.dataframe(objective_weights, use_container_width=True, hide_index=True)
+
     if not project_weights.empty:
-        st.subheader("Pesos SAPEVO-BSC dos projetos/KPIs")
-        st.caption("Peso final = peso da perspectiva BSC x peso local do projeto/KPI dentro da perspectiva.")
+        st.subheader("Pesos SAPEVO-BSC das acoes/projetos")
+        st.caption("Peso final = soma das pertinencias fuzzy da acao/projeto ponderadas pelos pesos globais dos objetivos.")
         st.dataframe(project_weights, use_container_width=True, hide_index=True)
 
     if not ranking.empty:
@@ -449,7 +590,14 @@ def main() -> None:
         st.dataframe(ranking, use_container_width=True, hide_index=True)
         st.info(strategic_conclusion(ranking, weights))
 
-        report = pdf_bytes(project=st.session_state.project, weights=weights, project_weights=project_weights, ranking=ranking)
+        report = pdf_bytes(
+            project=st.session_state.project,
+            objectives=st.session_state.objectives,
+            objective_weights=objective_weights,
+            weights=weights,
+            project_weights=project_weights,
+            ranking=ranking,
+        )
         st.download_button(
             "Baixar relatorio PDF",
             data=report,
