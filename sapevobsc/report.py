@@ -122,7 +122,7 @@ def write_pdf_report(
         story.append(Spacer(1, 10))
 
     story.append(paragraph("6. Ranking de projetos", "Heading1"))
-    rank_rows = [["Rank", "Acao/Projeto", "Objetivo", "Natureza", "Classe I/P", "Indice"]]
+    rank_rows = [["Rank", "Acao/Projeto", "Objetivo", "Natureza", "Classe I/P", "Indice I/P", "Indice"]]
     for _, row in ranking.iterrows():
         rank_rows.append(
             [
@@ -131,10 +131,11 @@ def write_pdf_report(
                 row.get("Objetivo/KPI", ""),
                 row.get("Natureza", ""),
                 row.get("Classificacao I/P", ""),
+                f"{float(row.get('Indice I/P', 0.0)):.4f}",
                 f"{float(row['Indice de prioridade']):.6f}",
             ]
         )
-    story.append(table(rank_rows, [1.1 * cm, 3.3 * cm, 4.5 * cm, 2.2 * cm, 2.2 * cm, 2.4 * cm]))
+    story.append(table(rank_rows, [1.0 * cm, 2.8 * cm, 3.8 * cm, 1.9 * cm, 1.8 * cm, 1.7 * cm, 2.1 * cm]))
     story.append(Spacer(1, 10))
 
     story.append(paragraph("7. Conclusao consultiva", "Heading1"))

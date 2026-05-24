@@ -7,7 +7,7 @@ from typing import Iterable
 
 import pandas as pd
 
-from .constants import IMPACT_PROBABILITY_SCALE
+from .constants import IMPACT_PROBABILITY_CLASS_VALUES, IMPACT_PROBABILITY_SCALE
 
 
 @dataclass(frozen=True)
@@ -274,6 +274,11 @@ def impact_probability_classification(nature: str, impact: str, probability: str
     return matrix.get(probability, {}).get(impact, "Baixa")
 
 
+def impact_probability_index(nature: str, impact: str, probability: str) -> float:
+    classification = impact_probability_classification(nature, impact, probability)
+    return float(IMPACT_PROBABILITY_CLASS_VALUES.get(classification, 0.0))
+
+
 def rank_projects(projects: pd.DataFrame, weights: pd.DataFrame, project_weights: pd.DataFrame | None = None) -> pd.DataFrame:
     if projects.empty or weights.empty:
         return pd.DataFrame()
@@ -311,21 +316,29 @@ def rank_projects(projects: pd.DataFrame, weights: pd.DataFrame, project_weights
         )
         impact = scale_value(str(project.get("Impacto", "")))
         probability = scale_value(str(project.get("Probabilidade", "")))
-        index = weight * impact * probability
+        nature = str(project.get("Natureza", "Oportunidade"))
+        ip_class = impact_probability_classification(
+            nature,
+            str(project.get("Impacto", "")),
+            str(project.get("Probabilidade", "")),
+        )
+        ip_index = impact_probability_index(
+            nature,
+            str(project.get("Impacto", "")),
+            str(project.get("Probabilidade", "")),
+        )
+        index = weight * ip_index
         rows.append(
             {
                 "Projeto": name,
                 "Objetivo/KPI": meta.get("Objetivo/KPI", objective_name(project)),
                 "Perspectiva": perspective,
-                "Natureza": project.get("Natureza", "Oportunidade"),
+                "Natureza": nature,
                 "Peso SAPEVO-BSC": round(weight, 6),
                 "Impacto": project.get("Impacto", ""),
                 "Probabilidade": project.get("Probabilidade", ""),
-                "Classificacao I/P": impact_probability_classification(
-                    str(project.get("Natureza", "Oportunidade")),
-                    str(project.get("Impacto", "")),
-                    str(project.get("Probabilidade", "")),
-                ),
+                "Classificacao I/P": ip_class,
+                "Indice I/P": round(ip_index, 6),
                 "Impacto (valor)": impact,
                 "Probabilidade (valor)": probability,
                 "Indice de prioridade": round(index, 8),
