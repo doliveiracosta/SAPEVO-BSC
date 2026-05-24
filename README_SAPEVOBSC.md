@@ -9,13 +9,12 @@ Artigo de referencia: https://www.researchgate.net/publication/390109234_SAPEVO-
 ## Fluxo metodologico
 
 1. Registrar o projeto, horizonte e visao do negocio.
-2. Identificar as acoes/projetos que precisam ser executados.
-3. Definir os objetivos/indicadores estrategicos que serao tratados como alternativas.
-4. Cadastrar decisores/avaliadores.
-5. Comparar perspectivas BSC por escala ordinal SAPEVO-M.
-6. Para cada perspectiva BSC, comparar os objetivos/indicadores por escala ordinal SAPEVO-M.
-7. Vincular cada acao/projeto ao objetivo/indicador estrategico correspondente e avaliar impacto/probabilidade com classe I/P calculada automaticamente.
-8. Gerar a matriz global objetivo x perspectiva, calcular o peso final de cada objetivo, calcular o ranking de prioridade e exportar relatorio PDF.
+2. Definir os objetivos/indicadores estrategicos que serao tratados como alternativas.
+3. Cadastrar decisores/avaliadores.
+4. Comparar perspectivas BSC por escala ordinal SAPEVO-M.
+5. Para cada perspectiva BSC, comparar os objetivos/indicadores por escala ordinal SAPEVO-M.
+6. Cadastrar cada acao/projeto, vincular ao objetivo/indicador estrategico correspondente e avaliar impacto/probabilidade com classe I/P calculada automaticamente.
+7. Gerar a matriz global objetivo x perspectiva, calcular o peso final de cada objetivo, calcular o ranking de prioridade e exportar relatorio PDF.
 
 ## Formula operacional
 

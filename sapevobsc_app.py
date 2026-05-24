@@ -16,28 +16,25 @@ from sapevobsc.constants import (
     APP_SUBTITLE,
     BSC_PERSPECTIVES,
     IMPACT_PROBABILITY_SCALE,
-    PROBABILITY_DISPLAY,
     PROJECT_NATURES,
     RISK_CLASS_COLORS,
-    SAPEVO_LABEL_BY_VALUE,
     SAPEVO_SCALE,
 )
 from sapevobsc.core import (
-    OPPORTUNITY_MATRIX,
-    THREAT_MATRIX,
     build_pairwise_matrix,
     calculate_project_weights_from_objectives,
     consolidate_objective_scores_by_perspective,
     consolidate_sapevo_weights,
     impact_probability_classification,
     impact_probability_index,
-    project_label,
     rank_projects,
     strategic_conclusion,
 )
 from sapevobsc.report import pdf_bytes
 
 PAPER_URL = "https://www.researchgate.net/publication/390109234_SAPEVO-BSC_Multicriteria_Method"
+ORCID_URL = "https://orcid.org/0000-0002-6138-7451"
+LINKEDIN_URL = "https://linkedin.com/in/daviddeoliveiracosta"
 
 
 def asset_data_uri(path: Path) -> str:
@@ -146,6 +143,28 @@ def render_cover() -> None:
             font-size: 0.92rem;
         }
         .paper-reference a:hover { color: #2563eb; }
+        .author-links {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin: 0.45rem 0 0.85rem;
+            color: #6b7280;
+            font-size: 0.92rem;
+        }
+        .author-links a {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            color: #6b7280;
+            text-decoration: none;
+        }
+        .author-links a:hover { color: #2563eb; }
+        .author-links img {
+            width: 18px;
+            height: 18px;
+            object-fit: contain;
+            display: inline-block;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -166,6 +185,8 @@ def render_cover() -> None:
         "logo_ppgec.png",
         "download (1).png",
     )
+    logo_orcid = asset_path("logo_orcid.svg", "orcid.svg", "logo_orcid.png")
+    logo_linkedin = asset_path("logo_linkedin.svg", "linkedin.svg", "logo_linkedin.png")
     logo_items = []
     if logo_upe:
         logo_items.append(f'<img class="logo-upe" src="{asset_data_uri(logo_upe)}" alt="UPE">')
@@ -184,6 +205,17 @@ def render_cover() -> None:
     st.title(APP_NAME)
     st.markdown(f"### {APP_SUBTITLE}")
     st.markdown(f"**{APP_OWNER_LABEL}**")
+    orcid_icon = f'<img src="{asset_data_uri(logo_orcid)}" alt="ORCID">' if logo_orcid else ""
+    linkedin_icon = f'<img src="{asset_data_uri(logo_linkedin)}" alt="LinkedIn">' if logo_linkedin else ""
+    st.markdown(
+        f"""
+        <div class="author-links">
+            <a href="{ORCID_URL}" target="_blank">{orcid_icon}<span>Perfil academico</span></a>
+            <a href="{LINKEDIN_URL}" target="_blank">{linkedin_icon}<span>Perfil profissional</span></a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.caption("Metodo multicriterio para priorizacao de projetos e acoes estrategicas com enfase em alinhamento estrategico.")
     st.markdown(
         f'<div class="paper-reference"><a href="{PAPER_URL}" target="_blank">Artigo de referência: SAPEVO-BSC Multicriteria Method</a></div>',
@@ -195,13 +227,12 @@ def render_cover() -> None:
             <summary>Como utilizar a plataforma</summary>
             <ol>
                 <li>Registre o contexto, a visao do negocio e o horizonte estrategico.</li>
-                <li>Identifique as acoes/projetos que precisam ser executados.</li>
                 <li>Cadastre os objetivos/indicadores estrategicos que serao tratados como alternativas.</li>
                 <li>Cadastre os decisores/avaliadores que participarao da comparacao SAPEVO-M.</li>
                 <li>Compare as perspectivas par-a-par usando a escala ordinal de -3 a +3.</li>
                 <li>Para cada perspectiva BSC, compare os objetivos/indicadores entre si.</li>
                 <li>Gere a matriz global objetivo x perspectiva e o ranking prioritario dos objetivos.</li>
-                <li>Vincule cada acao/projeto ao objetivo/indicador e avalie impacto/probabilidade com classe I/P calculada automaticamente.</li>
+                <li>Cadastre cada acao/projeto, vincule ao objetivo/indicador e avalie impacto/probabilidade com classe I/P calculada automaticamente.</li>
                 <li>Consolide a matriz global, o ranking dos objetivos e o ranking final dos projetos.</li>
             </ol>
         </details>
@@ -225,7 +256,7 @@ def project_inputs() -> None:
 
 
 def objective_inputs() -> pd.DataFrame:
-    st.subheader("3. Objetivos/indicadores estrategicos")
+    st.subheader("2. Objetivos/indicadores estrategicos")
     st.caption("Cadastre os objetivos/indicadores que serao tratados como alternativas na matriz decisoria.")
     objectives = st.session_state.objectives.copy()
     objective_count = st.number_input(
@@ -272,7 +303,7 @@ def perspective_inputs() -> None:
 
 
 def evaluator_inputs() -> None:
-    st.subheader("4. Decisores/avaliadores")
+    st.subheader("3. Decisores/avaliadores")
     count = st.number_input("Quantidade de avaliadores", min_value=1, max_value=10, value=len(st.session_state.evaluators), step=1)
     names = []
     cols = st.columns(min(3, int(count)))
@@ -284,7 +315,7 @@ def evaluator_inputs() -> None:
 
 
 def comparison_inputs() -> list[pd.DataFrame]:
-    st.subheader("5. Comparacao SAPEVO-M das perspectivas BSC")
+    st.subheader("4. Comparacao SAPEVO-M das perspectivas BSC")
     st.caption("Primeiro ciclo SAPEVO-M: define o peso estrategico das perspectivas BSC.")
     perspectives = st.session_state.perspectives
     if len(perspectives) < 2:
@@ -335,58 +366,11 @@ def sync_project_columns(projects: pd.DataFrame) -> pd.DataFrame:
     return projects
 
 
-def project_table_inputs() -> pd.DataFrame:
-    st.subheader("2. Identificacao das acoes/projetos estrategicos")
-    st.caption("Informe somente as acoes/projetos que precisam ser executados. O objetivo vinculado sera definido apos o calculo dos pesos dos objetivos.")
-    st.session_state.projects = sync_project_columns(st.session_state.projects)
-    if "Natureza" not in st.session_state.projects.columns:
-        st.session_state.projects["Natureza"] = "Oportunidade"
-    project_count = st.number_input(
-        "Quantidade de acoes/projetos",
-        min_value=1,
-        max_value=100,
-        value=max(1, len(st.session_state.projects)),
-        step=1,
-    )
-    projects = st.session_state.projects.copy().reset_index(drop=True)
-    desired_count = int(project_count)
-    if len(projects) < desired_count:
-        for index in range(len(projects), desired_count):
-            projects.loc[index, "Acao/Projeto"] = f"P{index + 1}"
-            projects.loc[index, "Perspectiva"] = ""
-            projects.loc[index, "Natureza"] = "Oportunidade"
-            projects.loc[index, "Impacto"] = "Moderado"
-            projects.loc[index, "Probabilidade"] = "Moderado"
-    elif len(projects) > desired_count:
-        projects = projects.iloc[:desired_count].copy()
-    projects = sync_project_columns(projects)
-    edited = st.data_editor(
-        projects[
-            ["Acao/Projeto", "Natureza", "Impacto", "Probabilidade"]
-        ],
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto", required=True),
-            "Natureza": st.column_config.SelectboxColumn("Natureza", options=PROJECT_NATURES),
-            "Impacto": st.column_config.SelectboxColumn("Impacto", options=list(IMPACT_PROBABILITY_SCALE)),
-            "Probabilidade": st.column_config.SelectboxColumn("Probabilidade", options=list(IMPACT_PROBABILITY_SCALE)),
-        },
-    )
-    edited = edited.dropna(how="all").fillna("").reset_index(drop=True)
-    for column in ["Objetivo estrategico", "Perspectiva"]:
-        if column in projects.columns:
-            edited[column] = projects[column].iloc[: len(edited)].reset_index(drop=True)
-    edited = sync_project_columns(edited)
-    st.session_state.projects = edited
-    return edited
-
-
 def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFrame) -> pd.DataFrame:
-    st.subheader("7. Vinculo com objetivos e avaliacao Impacto/Probabilidade")
+    st.subheader("6. Acoes/projetos, objetivos e avaliacao Impacto/Probabilidade")
     st.caption("Associe cada acao/projeto ao objetivo/indicador e avalie natureza, impacto e probabilidade. A classe I/P muda conforme o item seja ameaca ou oportunidade.")
-    if projects.empty or objectives.empty:
-        st.warning("Cadastre acoes/projetos e objetivos/indicadores antes de realizar o vinculo.")
+    if objectives.empty:
+        st.warning("Cadastre objetivos/indicadores antes de realizar o vinculo.")
         return projects
 
     objective_options = [
@@ -397,7 +381,30 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
     if not objective_options:
         return projects
 
+    if projects.empty:
+        projects = pd.DataFrame(columns=["Acao/Projeto", "Objetivo estrategico", "Natureza", "Impacto", "Probabilidade"])
     linked = sync_project_columns(projects).reset_index(drop=True)
+    if "Natureza" not in linked.columns:
+        linked["Natureza"] = "Oportunidade"
+    project_count = st.number_input(
+        "Quantidade de acoes/projetos",
+        min_value=1,
+        max_value=100,
+        value=max(1, len(linked)),
+        step=1,
+    )
+    desired_count = int(project_count)
+    if len(linked) < desired_count:
+        for index in range(len(linked), desired_count):
+            linked.loc[index, "Acao/Projeto"] = f"P{index + 1}"
+            linked.loc[index, "Objetivo estrategico"] = objective_options[0]
+            linked.loc[index, "Perspectiva"] = ""
+            linked.loc[index, "Natureza"] = "Oportunidade"
+            linked.loc[index, "Impacto"] = "Moderado"
+            linked.loc[index, "Probabilidade"] = "Moderado"
+    elif len(linked) > desired_count:
+        linked = linked.iloc[:desired_count].copy()
+    linked = sync_project_columns(linked)
     linked["Objetivo estrategico"] = linked["Objetivo estrategico"].where(
         linked["Objetivo estrategico"].isin(objective_options),
         objective_options[0],
@@ -407,9 +414,8 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
         link_table,
         use_container_width=True,
         hide_index=True,
-        disabled=["Acao/Projeto"],
         column_config={
-            "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto"),
+            "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto", required=True),
             "Objetivo estrategico": st.column_config.SelectboxColumn(
                 "Objetivo/indicador estrategico",
                 options=objective_options,
@@ -507,168 +513,8 @@ def render_ip_assessment(projects: pd.DataFrame) -> None:
     )
 
 
-def render_fuzzy_proportion_scale() -> None:
-    ticks = [
-        ("0", "Nao aderente"),
-        ("0,25", "Baixa aderencia fuzzy"),
-        ("0,50", "Aderencia fuzzy moderada"),
-        ("0,75", "Alta aderencia fuzzy"),
-        ("1", "Aderencia fuzzy total"),
-    ]
-    tick_html = "".join(f"<span><strong>{value}</strong><small>{label}</small></span>" for value, label in ticks)
-    st.markdown(
-        f"""
-        <style>
-        .fuzzy-ruler {{
-            margin: 0.2rem 0 1rem;
-            max-width: 920px;
-        }}
-        .fuzzy-ruler-bar {{
-            height: 14px;
-            border-radius: 999px;
-            background: linear-gradient(90deg, #fee2e2 0%, #fde68a 50%, #bbf7d0 100%);
-            border: 1px solid #d1d5db;
-        }}
-        .fuzzy-ruler-ticks {{
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-            margin-top: 7px;
-            color: #4b5563;
-            font-size: 0.76rem;
-        }}
-        .fuzzy-ruler-ticks span {{
-            display: flex;
-            flex-direction: column;
-            gap: 1px;
-        }}
-        .fuzzy-ruler-ticks span:nth-child(1) {{ text-align: left; }}
-        .fuzzy-ruler-ticks span:nth-child(2),
-        .fuzzy-ruler-ticks span:nth-child(3),
-        .fuzzy-ruler-ticks span:nth-child(4) {{ text-align: center; }}
-        .fuzzy-ruler-ticks span:nth-child(5) {{ text-align: right; }}
-        .fuzzy-ruler-ticks small {{
-            color: #6b7280;
-            font-size: 0.70rem;
-        }}
-        </style>
-        <div class="fuzzy-ruler" aria-label="Regua de proporcao fuzzy">
-            <div class="fuzzy-ruler-bar"></div>
-            <div class="fuzzy-ruler-ticks">{tick_html}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def fuzzy_alignment_inputs(projects: pd.DataFrame, objectives: pd.DataFrame) -> pd.DataFrame:
-    st.subheader("4. Particao fuzzy entre acoes/projetos e objetivos")
-    st.caption("Distribua o grau fuzzy de aderencia de cada acao/projeto aos objetivos estrategicos, em escala de 0 a 1. A soma de cada linha deve ser 1,00.")
-    render_fuzzy_proportion_scale()
-
-    if projects.empty or objectives.empty:
-        st.warning("Cadastre acoes/projetos e objetivos estrategicos antes de preencher a particao fuzzy.")
-        return pd.DataFrame()
-
-    project_names = [str(item).strip() for item in projects["Acao/Projeto"].astype(str).tolist() if str(item).strip()]
-    objective_names = [str(item).strip() for item in objectives["Objetivo estrategico"].astype(str).tolist() if str(item).strip()]
-    if not project_names or not objective_names:
-        return pd.DataFrame()
-
-    previous = st.session_state.fuzzy_alignment.copy() if not st.session_state.fuzzy_alignment.empty else pd.DataFrame()
-    previous_map = {}
-    if not previous.empty and "Acao/Projeto" in previous.columns:
-        for _, row in previous.iterrows():
-            previous_map[str(row.get("Acao/Projeto", ""))] = row
-
-    rows = []
-    for project in project_names:
-        row = {"Acao/Projeto": project}
-        previous_row = previous_map.get(project)
-        for index, objective in enumerate(objective_names):
-            if previous_row is not None and objective in previous_row:
-                value = previous_row.get(objective, 0.0)
-            else:
-                value = 1.0 if index == 0 else 0.0
-            row[objective] = float(value or 0.0)
-        rows.append(row)
-
-    alignment = pd.DataFrame(rows)
-    edited = st.data_editor(
-        alignment,
-        use_container_width=True,
-        hide_index=True,
-        disabled=["Acao/Projeto"],
-        column_config={
-            "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto"),
-            **{
-                objective: st.column_config.NumberColumn(objective, min_value=0.0, max_value=1.0, step=0.05, format="%.2f")
-                for objective in objective_names
-            },
-        },
-    )
-    edited[objective_names] = edited[objective_names].apply(pd.to_numeric, errors="coerce").fillna(0.0).clip(0.0, 1.0)
-    edited["Soma"] = edited[objective_names].sum(axis=1).round(4)
-    invalid = edited[(edited["Soma"] - 1.0).abs() > 0.001]
-    if invalid.empty:
-        st.success("Particao fuzzy valida: todas as acoes/projetos somam 1,00.")
-    else:
-        st.warning("Ajuste a particao fuzzy: cada acao/projeto deve somar 1,00. O calculo normaliza automaticamente, mas a entrada ideal e fechar 100%.")
-        st.dataframe(edited[["Acao/Projeto", "Soma"]], use_container_width=True, hide_index=True)
-
-    st.session_state.fuzzy_alignment = edited.drop(columns=["Soma"])
-    return st.session_state.fuzzy_alignment
-
-
-def project_comparison_inputs(projects: pd.DataFrame) -> dict[str, list[pd.DataFrame]]:
-    st.subheader("Comparacao SAPEVO-M dos projetos/KPIs")
-    st.caption("Segundo ciclo SAPEVO-M: compara os projetos ou KPIs dentro de cada perspectiva BSC.")
-    if projects.empty:
-        st.warning("Cadastre projetos antes de comparar projetos/KPIs.")
-        return {}
-
-    labels_by_perspective = {}
-    for perspective, group in projects.groupby("Perspectiva", dropna=False):
-        labels = [project_label(row) or f"Item {index + 1}" for index, row in group.reset_index(drop=True).iterrows()]
-        if labels:
-            labels_by_perspective[str(perspective)] = labels
-
-    matrices_by_perspective: dict[str, list[pd.DataFrame]] = {}
-    labels = list(SAPEVO_SCALE)
-    reverse_scale = {value: label for label, value in SAPEVO_SCALE.items()}
-
-    for perspective in st.session_state.perspectives:
-        items = labels_by_perspective.get(perspective, [])
-        if not items:
-            continue
-        with st.expander(f"{perspective}: {len(items)} projeto(s)/KPI(s)", expanded=False):
-            if len(items) == 1:
-                st.info("Ha apenas um projeto/KPI nesta perspectiva; o peso local sera 100%.")
-                matrices_by_perspective[perspective] = []
-                continue
-
-            evaluator_matrices = []
-            for evaluator in st.session_state.evaluators:
-                st.markdown(f"**{evaluator}**")
-                comparisons = {}
-                for i, item_i in enumerate(items):
-                    for item_j in items[i + 1 :]:
-                        key = f"project_sapevo_{stable_key(evaluator, perspective, item_i, item_j)}"
-                        label = st.select_slider(
-                            f"{item_i} em relacao a {item_j}",
-                            options=labels,
-                            value=reverse_scale[0],
-                            key=key,
-                        )
-                        comparisons[(item_i, item_j)] = SAPEVO_SCALE[label]
-                evaluator_matrices.append(build_pairwise_matrix(items, comparisons))
-            matrices_by_perspective[perspective] = evaluator_matrices
-
-    return matrices_by_perspective
-
-
 def objective_comparison_inputs(objectives: pd.DataFrame) -> dict[str, list[pd.DataFrame]]:
-    st.subheader("6. Comparacao SAPEVO-M dos objetivos/indicadores por perspectiva")
+    st.subheader("5. Comparacao SAPEVO-M dos objetivos/indicadores por perspectiva")
     st.caption("Para cada perspectiva BSC, cada decisor compara os objetivos/indicadores entre si.")
     if objectives.empty:
         st.warning("Cadastre objetivos estrategicos antes de comparar objetivos/KPIs.")
@@ -712,87 +558,6 @@ def objective_comparison_inputs(objectives: pd.DataFrame) -> dict[str, list[pd.D
     return matrices_by_perspective
 
 
-def render_impact_probability_matrix() -> None:
-    st.subheader("8. Matriz Impacto/Probabilidade")
-    st.caption(
-        "Classificacao operacional usada no indice I/P. Para ameacas, maior impacto/probabilidade aumenta criticidade; "
-        "para oportunidades, a leitura e invertida conforme a matriz."
-    )
-    probability_order = ["Muito alto", "Alto", "Moderado", "Baixo", "Muito baixo"]
-    threat_impacts = ["Muito baixo", "Baixo", "Moderado", "Alto", "Muito alto"]
-    opportunity_impacts = ["Muito alto", "Alto", "Moderado", "Baixo", "Muito baixo"]
-
-    header_cells = (
-        '<th class="ip-side"></th>'
-        '<th class="ip-threat" colspan="5">Ameacas</th>'
-        '<th class="ip-opportunity" colspan="5">Oportunidades</th>'
-    )
-    rows = [f"<tr>{header_cells}</tr>"]
-    for probability in probability_order:
-        cells = [f'<th class="ip-prob">{PROBABILITY_DISPLAY[probability]}</th>']
-        for impact in threat_impacts:
-            label = THREAT_MATRIX[probability][impact]
-            cells.append(f'<td style="background:{RISK_CLASS_COLORS[label]}">{label}</td>')
-        for impact in opportunity_impacts:
-            label = OPPORTUNITY_MATRIX[probability][impact]
-            cells.append(f'<td style="background:{RISK_CLASS_COLORS[label]}">{label}</td>')
-        rows.append(f"<tr>{''.join(cells)}</tr>")
-
-    impact_row = ['<th class="ip-side"></th>']
-    for impact in threat_impacts + opportunity_impacts:
-        impact_row.append(f"<th>{impact}</th>")
-    rows.append(f"<tr>{''.join(impact_row)}</tr>")
-
-    st.markdown(
-        f"""
-        <style>
-        .ip-matrix-wrap {{
-            overflow-x: auto;
-            margin: 0.25rem 0 1.25rem;
-        }}
-        .ip-matrix {{
-            border-collapse: collapse;
-            min-width: 980px;
-            text-align: center;
-            font-size: 0.84rem;
-        }}
-        .ip-matrix th, .ip-matrix td {{
-            border: 1px solid #111827;
-            padding: 12px 10px;
-            min-width: 84px;
-        }}
-        .ip-matrix .ip-threat {{
-            background: #ff4d57;
-            color: #ffffff;
-            font-weight: 700;
-        }}
-        .ip-matrix .ip-opportunity {{
-            background: #0b62a4;
-            color: #ffffff;
-            font-weight: 700;
-        }}
-        .ip-matrix .ip-prob {{
-            background: #f8fafc;
-            font-weight: 700;
-        }}
-        .ip-matrix-caption {{
-            background: #dbeafe;
-            color: #111827;
-            font-weight: 700;
-            text-align: center;
-            padding: 8px;
-            min-width: 980px;
-        }}
-        </style>
-        <div class="ip-matrix-wrap">
-            <table class="ip-matrix">{''.join(rows)}</table>
-            <div class="ip-matrix-caption">Impacto</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
 def radar_svg(weights: pd.DataFrame) -> str:
     if weights.empty:
         return ""
@@ -834,14 +599,13 @@ def main() -> None:
 
     project_inputs()
     perspective_inputs()
-    projects = project_table_inputs()
     objectives = objective_inputs()
     evaluator_inputs()
     perspective_matrices = comparison_inputs()
     objective_matrices = objective_comparison_inputs(objectives)
-    projects = project_objective_link_inputs(projects, objectives)
+    projects = project_objective_link_inputs(st.session_state.projects, objectives)
 
-    st.subheader("8. Consolidacao, matriz global e ranking")
+    st.subheader("7. Consolidacao, matriz global e ranking")
     if st.button("Consolidar SAPEVO-BSC", type="primary"):
         weight_result = consolidate_sapevo_weights(perspective_matrices)
         objective_result = consolidate_objective_scores_by_perspective(objectives, weight_result.weights, objective_matrices)
