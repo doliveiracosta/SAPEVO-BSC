@@ -192,14 +192,14 @@ def render_cover() -> None:
         <details class="usage-guide">
             <summary>Como utilizar a plataforma</summary>
             <ol>
-                <li>Preencha os dados do projeto, incluindo a visão do negócio.</li>
-                <li>Cadastre os objetivos estratégicos, seus pesos relativos e suas perspectivas BSC.</li>
-                <li>Cadastre ações/projetos estratégicos.</li>
-                <li>Distribua fuzzy o alinhamento de cada ação/projeto entre os objetivos, garantindo soma 1,00.</li>
-                <li>Cadastre os avaliadores que participarão da comparação SAPEVO-M.</li>
+                <li>Registre o contexto, a visao do negocio e o horizonte estrategico.</li>
+                <li>Cadastre as acoes/projetos estrategicos que precisam ser priorizados.</li>
+                <li>Cadastre os objetivos estrategicos e associe cada objetivo a uma perspectiva BSC.</li>
+                <li>Distribua fuzzy o alinhamento de cada acao/projeto entre os objetivos, garantindo soma 1,00.</li>
+                <li>Cadastre os decisores/avaliadores que participarao da comparacao SAPEVO-M.</li>
                 <li>Compare as perspectivas par-a-par usando a escala ordinal de -3 a +3.</li>
-                <li>Avalie impacto e probabilidade de cada projeto.</li>
-                <li>Consolide para obter pesos compostos, ranking e relatório PDF.</li>
+                <li>Avalie impacto e probabilidade de cada acao/projeto.</li>
+                <li>Consolide para obter pesos compostos, ranking e relatorio PDF.</li>
             </ol>
         </details>
         """,
@@ -208,7 +208,7 @@ def render_cover() -> None:
 
 
 def project_inputs() -> None:
-    st.subheader("Projeto")
+    st.subheader("1. Visao do negocio e contexto")
     project = st.session_state.project
     col1, col2 = st.columns(2)
     with col1:
@@ -222,8 +222,8 @@ def project_inputs() -> None:
 
 
 def objective_inputs() -> pd.DataFrame:
-    st.subheader("Objetivos estrategicos")
-    st.caption("Defina quantos objetivos serao analisados e descreva cada objetivo.")
+    st.subheader("3. Objetivos estrategicos e perspectivas BSC")
+    st.caption("Defina quantos objetivos serao analisados, descreva cada objetivo e selecione a perspectiva BSC correspondente.")
     objectives = st.session_state.objectives.copy()
     if "Perspectiva" not in objectives.columns:
         objectives["Perspectiva"] = st.session_state.perspectives[0] if st.session_state.perspectives else ""
@@ -245,23 +245,48 @@ def objective_inputs() -> pd.DataFrame:
     elif len(objectives) > desired_count:
         objectives = objectives.iloc[:desired_count].copy()
 
-    edited = st.data_editor(
-        objectives[["Objetivo estrategico", "Perspectiva", "Descricao"]],
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Objetivo estrategico": st.column_config.TextColumn("Objetivo estrategico", required=True),
-            "Perspectiva": st.column_config.SelectboxColumn(
-                "Perspectiva BSC",
-                options=st.session_state.perspectives,
-                required=True,
-                help="Selecione a perspectiva estrategica como em um filtro de planilha.",
-            ),
-            "Descricao": st.column_config.TextColumn("Descricao"),
-        },
-    )
-    edited = edited.dropna(how="all").fillna("").reset_index(drop=True)
-    edited = edited[["Objetivo estrategico", "Perspectiva", "Descricao"]]
+    header = st.columns([2.4, 1.7, 2.7])
+    header[0].markdown("**Objetivo estrategico**")
+    header[1].markdown("**Perspectiva BSC**")
+    header[2].markdown("**Descricao**")
+
+    rows = []
+    for index, row in objectives.iterrows():
+        current_objective = str(row.get("Objetivo estrategico", "") or f"Objetivo {index + 1}")
+        current_perspective = str(row.get("Perspectiva", st.session_state.perspectives[0]))
+        current_description = str(row.get("Descricao", ""))
+        if current_perspective not in st.session_state.perspectives:
+            current_perspective = st.session_state.perspectives[0]
+
+        col1, col2, col3 = st.columns([2.4, 1.7, 2.7])
+        objective = col1.text_input(
+            f"Objetivo estrategico {index + 1}",
+            value=current_objective,
+            label_visibility="collapsed",
+            key=f"objective_name_{index}",
+        )
+        perspective = col2.selectbox(
+            f"Perspectiva BSC {index + 1}",
+            options=st.session_state.perspectives,
+            index=st.session_state.perspectives.index(current_perspective),
+            label_visibility="collapsed",
+            key=f"objective_perspective_{index}",
+        )
+        description = col3.text_input(
+            f"Descricao {index + 1}",
+            value=current_description,
+            label_visibility="collapsed",
+            key=f"objective_description_{index}",
+        )
+        rows.append(
+            {
+                "Objetivo estrategico": objective,
+                "Perspectiva": perspective,
+                "Descricao": description,
+            }
+        )
+
+    edited = pd.DataFrame(rows).dropna(how="all").fillna("").reset_index(drop=True)
     st.session_state.objectives = edited
     return edited
 
@@ -271,7 +296,7 @@ def perspective_inputs() -> None:
 
 
 def evaluator_inputs() -> None:
-    st.subheader("Avaliadores")
+    st.subheader("5. Avaliadores")
     count = st.number_input("Quantidade de avaliadores", min_value=1, max_value=10, value=len(st.session_state.evaluators), step=1)
     names = []
     cols = st.columns(min(3, int(count)))
@@ -283,7 +308,7 @@ def evaluator_inputs() -> None:
 
 
 def comparison_inputs() -> list[pd.DataFrame]:
-    st.subheader("Comparacao SAPEVO-M das perspectivas BSC")
+    st.subheader("6. Comparacao SAPEVO-M das perspectivas BSC")
     st.caption("Primeiro ciclo SAPEVO-M: define o peso estrategico das perspectivas BSC.")
     perspectives = st.session_state.perspectives
     if len(perspectives) < 2:
@@ -326,7 +351,7 @@ def sync_project_columns(projects: pd.DataFrame) -> pd.DataFrame:
 
 
 def project_table_inputs() -> pd.DataFrame:
-    st.subheader("Acoes e projetos estrategicos")
+    st.subheader("2. Acoes e projetos estrategicos")
     st.caption("Escolha a quantidade de acoes/projetos e preencha impacto/probabilidade.")
     st.session_state.projects = sync_project_columns(st.session_state.projects)
     if "Natureza" not in st.session_state.projects.columns:
@@ -390,11 +415,11 @@ def project_table_inputs() -> pd.DataFrame:
 
 def render_fuzzy_proportion_scale() -> None:
     ticks = [
-        ("0%", "Nenhuma"),
-        ("25%", "Baixa"),
-        ("50%", "Moderada"),
-        ("75%", "Alta"),
-        ("100%", "Total"),
+        ("0", "Nao aderente"),
+        ("0,25", "Baixa aderencia fuzzy"),
+        ("0,50", "Aderencia fuzzy moderada"),
+        ("0,75", "Alta aderencia fuzzy"),
+        ("1", "Aderencia fuzzy total"),
     ]
     tick_html = "".join(f"<span><strong>{value}</strong><small>{label}</small></span>" for value, label in ticks)
     st.markdown(
@@ -402,7 +427,7 @@ def render_fuzzy_proportion_scale() -> None:
         <style>
         .fuzzy-ruler {{
             margin: 0.2rem 0 1rem;
-            max-width: 760px;
+            max-width: 920px;
         }}
         .fuzzy-ruler-bar {{
             height: 14px;
@@ -413,10 +438,10 @@ def render_fuzzy_proportion_scale() -> None:
         .fuzzy-ruler-ticks {{
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 8px;
+            gap: 10px;
             margin-top: 7px;
             color: #4b5563;
-            font-size: 0.78rem;
+            font-size: 0.76rem;
         }}
         .fuzzy-ruler-ticks span {{
             display: flex;
@@ -430,7 +455,7 @@ def render_fuzzy_proportion_scale() -> None:
         .fuzzy-ruler-ticks span:nth-child(5) {{ text-align: right; }}
         .fuzzy-ruler-ticks small {{
             color: #6b7280;
-            font-size: 0.72rem;
+            font-size: 0.70rem;
         }}
         </style>
         <div class="fuzzy-ruler" aria-label="Regua de proporcao fuzzy">
@@ -443,8 +468,8 @@ def render_fuzzy_proportion_scale() -> None:
 
 
 def fuzzy_alignment_inputs(projects: pd.DataFrame, objectives: pd.DataFrame) -> pd.DataFrame:
-    st.subheader("Particao fuzzy entre objetivos estrategicos")
-    st.caption("Distribua a contribuicao de cada acao/projeto entre os objetivos. A soma de cada linha deve ser 1,00.")
+    st.subheader("4. Particao fuzzy entre acoes/projetos e objetivos")
+    st.caption("Distribua o grau fuzzy de aderencia de cada acao/projeto aos objetivos estrategicos, em escala de 0 a 1. A soma de cada linha deve ser 1,00.")
     render_fuzzy_proportion_scale()
 
     if projects.empty or objectives.empty:
@@ -549,8 +574,11 @@ def project_comparison_inputs(projects: pd.DataFrame) -> dict[str, list[pd.DataF
 
 
 def render_impact_probability_matrix() -> None:
-    st.subheader("Matriz Impacto/Probabilidade")
-    st.caption("Classificacao operacional usada para interpretar ameacas e oportunidades.")
+    st.subheader("7. Matriz Impacto/Probabilidade")
+    st.caption(
+        "Classificacao operacional usada no indice I/P. Para ameacas, maior impacto/probabilidade aumenta criticidade; "
+        "para oportunidades, a leitura e invertida conforme a matriz."
+    )
     probability_order = ["Muito alto", "Alto", "Moderado", "Baixo", "Muito baixo"]
     threat_impacts = ["Muito baixo", "Baixo", "Moderado", "Alto", "Muito alto"]
     opportunity_impacts = ["Muito alto", "Alto", "Moderado", "Baixo", "Muito baixo"]
@@ -667,13 +695,14 @@ def main() -> None:
 
     project_inputs()
     perspective_inputs()
-    objectives = objective_inputs()
     projects = project_table_inputs()
+    objectives = objective_inputs()
     fuzzy_alignment = fuzzy_alignment_inputs(projects, objectives)
     evaluator_inputs()
     perspective_matrices = comparison_inputs()
     render_impact_probability_matrix()
 
+    st.subheader("8. Consolidacao e ranking")
     if st.button("Consolidar SAPEVO-BSC", type="primary"):
         weight_result = consolidate_sapevo_weights(perspective_matrices)
         objective_weights = compute_objective_weights(objectives, weight_result.weights)
