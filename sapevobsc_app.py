@@ -15,10 +15,20 @@ from sapevobsc.constants import (
     APP_SUBTITLE,
     BSC_PERSPECTIVES,
     IMPACT_PROBABILITY_SCALE,
+    PROBABILITY_DISPLAY,
+    PROJECT_NATURES,
+    RISK_CLASS_COLORS,
     SAPEVO_LABEL_BY_VALUE,
     SAPEVO_SCALE,
 )
-from sapevobsc.core import build_pairwise_matrix, consolidate_sapevo_weights, rank_projects, strategic_conclusion
+from sapevobsc.core import (
+    OPPORTUNITY_MATRIX,
+    THREAT_MATRIX,
+    build_pairwise_matrix,
+    consolidate_sapevo_weights,
+    rank_projects,
+    strategic_conclusion,
+)
 from sapevobsc.report import pdf_bytes
 
 
@@ -40,10 +50,10 @@ def init_state() -> None:
         "evaluators": ["Avaliador 1", "Avaliador 2", "Avaliador 3"],
         "projects": pd.DataFrame(
             [
-                {"Projeto": "P1", "Objetivo/KPI": "KPI 1", "Perspectiva": "Financeira", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
-                {"Projeto": "P2", "Objetivo/KPI": "KPI 2", "Perspectiva": "Clientes", "Impacto": "Alto", "Probabilidade": "Moderado"},
-                {"Projeto": "P3", "Objetivo/KPI": "KPI 3", "Perspectiva": "Processos Internos", "Impacto": "Moderado", "Probabilidade": "Alto"},
-                {"Projeto": "P4", "Objetivo/KPI": "KPI 4", "Perspectiva": "Aprendizado e Crescimento", "Impacto": "Baixo", "Probabilidade": "Muito alto"},
+                {"Projeto": "P1", "Objetivo/KPI": "KPI 1", "Perspectiva": "Financeira", "Natureza": "Oportunidade", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
+                {"Projeto": "P2", "Objetivo/KPI": "KPI 2", "Perspectiva": "Clientes", "Natureza": "Ameaca", "Impacto": "Alto", "Probabilidade": "Moderado"},
+                {"Projeto": "P3", "Objetivo/KPI": "KPI 3", "Perspectiva": "Processos Internos", "Natureza": "Oportunidade", "Impacto": "Moderado", "Probabilidade": "Alto"},
+                {"Projeto": "P4", "Objetivo/KPI": "KPI 4", "Perspectiva": "Aprendizado e Crescimento", "Natureza": "Ameaca", "Impacto": "Baixo", "Probabilidade": "Muito alto"},
             ]
         ),
         "weights": pd.DataFrame(),
@@ -207,6 +217,8 @@ def comparison_inputs() -> list[pd.DataFrame]:
 def project_table_inputs() -> pd.DataFrame:
     st.subheader("Projetos estrategicos")
     st.caption("Cadastre projetos, objetivos/KPIs, perspectiva BSC, impacto e probabilidade.")
+    if "Natureza" not in st.session_state.projects.columns:
+        st.session_state.projects["Natureza"] = "Oportunidade"
     edited = st.data_editor(
         st.session_state.projects,
         use_container_width=True,
@@ -214,12 +226,91 @@ def project_table_inputs() -> pd.DataFrame:
         hide_index=True,
         column_config={
             "Perspectiva": st.column_config.SelectboxColumn("Perspectiva", options=st.session_state.perspectives),
+            "Natureza": st.column_config.SelectboxColumn("Natureza", options=PROJECT_NATURES),
             "Impacto": st.column_config.SelectboxColumn("Impacto", options=list(IMPACT_PROBABILITY_SCALE)),
             "Probabilidade": st.column_config.SelectboxColumn("Probabilidade", options=list(IMPACT_PROBABILITY_SCALE)),
         },
     )
     st.session_state.projects = edited
     return edited
+
+
+def render_impact_probability_matrix() -> None:
+    st.subheader("Matriz Impacto/Probabilidade")
+    st.caption("Classificacao operacional usada para interpretar ameacas e oportunidades.")
+    probability_order = ["Muito alto", "Alto", "Moderado", "Baixo", "Muito baixo"]
+    threat_impacts = ["Muito baixo", "Baixo", "Moderado", "Alto", "Muito alto"]
+    opportunity_impacts = ["Muito alto", "Alto", "Moderado", "Baixo", "Muito baixo"]
+
+    header_cells = (
+        '<th class="ip-side"></th>'
+        '<th class="ip-threat" colspan="5">Ameacas</th>'
+        '<th class="ip-opportunity" colspan="5">Oportunidades</th>'
+    )
+    rows = [f"<tr>{header_cells}</tr>"]
+    for probability in probability_order:
+        cells = [f'<th class="ip-prob">{PROBABILITY_DISPLAY[probability]}</th>']
+        for impact in threat_impacts:
+            label = THREAT_MATRIX[probability][impact]
+            cells.append(f'<td style="background:{RISK_CLASS_COLORS[label]}">{label}</td>')
+        for impact in opportunity_impacts:
+            label = OPPORTUNITY_MATRIX[probability][impact]
+            cells.append(f'<td style="background:{RISK_CLASS_COLORS[label]}">{label}</td>')
+        rows.append(f"<tr>{''.join(cells)}</tr>")
+
+    impact_row = ['<th class="ip-side"></th>']
+    for impact in threat_impacts + opportunity_impacts:
+        impact_row.append(f"<th>{impact}</th>")
+    rows.append(f"<tr>{''.join(impact_row)}</tr>")
+
+    st.markdown(
+        f"""
+        <style>
+        .ip-matrix-wrap {{
+            overflow-x: auto;
+            margin: 0.25rem 0 1.25rem;
+        }}
+        .ip-matrix {{
+            border-collapse: collapse;
+            min-width: 980px;
+            text-align: center;
+            font-size: 0.84rem;
+        }}
+        .ip-matrix th, .ip-matrix td {{
+            border: 1px solid #111827;
+            padding: 12px 10px;
+            min-width: 84px;
+        }}
+        .ip-matrix .ip-threat {{
+            background: #ff4d57;
+            color: #ffffff;
+            font-weight: 700;
+        }}
+        .ip-matrix .ip-opportunity {{
+            background: #0b62a4;
+            color: #ffffff;
+            font-weight: 700;
+        }}
+        .ip-matrix .ip-prob {{
+            background: #f8fafc;
+            font-weight: 700;
+        }}
+        .ip-matrix-caption {{
+            background: #dbeafe;
+            color: #111827;
+            font-weight: 700;
+            text-align: center;
+            padding: 8px;
+            min-width: 980px;
+        }}
+        </style>
+        <div class="ip-matrix-wrap">
+            <table class="ip-matrix">{''.join(rows)}</table>
+            <div class="ip-matrix-caption">Impacto</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def radar_svg(weights: pd.DataFrame) -> str:
@@ -265,6 +356,7 @@ def main() -> None:
     perspective_inputs()
     evaluator_inputs()
     matrices = comparison_inputs()
+    render_impact_probability_matrix()
     projects = project_table_inputs()
 
     if st.button("Consolidar SAPEVO-BSC", type="primary"):
