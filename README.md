@@ -9,8 +9,8 @@ Artigo de referencia: https://www.researchgate.net/publication/390109234_SAPEVO-
 ## Fluxo metodologico
 
 1. Registrar o projeto, horizonte e visao do negocio.
-2. Usar as quatro perspectivas BSC como estrutura fixa do metodo.
-3. Cadastrar objetivos estrategicos e associa-los as perspectivas BSC.
+2. Usar as quatro perspectivas BSC como estrutura fixa interna do metodo.
+3. Definir a quantidade de objetivos estrategicos, atribuir pesos em escala aberta e, em campo recolhido, associa-los as perspectivas BSC.
 4. Definir a quantidade de acoes/projetos estrategicos e associar cada item a uma perspectiva BSC principal.
 5. Distribuir fuzzy o alinhamento de cada acao/projeto entre os objetivos estrategicos, com soma 1,00.
 6. Cadastrar avaliadores.

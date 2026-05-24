@@ -223,37 +223,74 @@ def project_inputs() -> None:
 
 def objective_inputs() -> pd.DataFrame:
     st.subheader("Objetivos estrategicos")
-    st.caption("Cadastre os objetivos que traduzem a visao do negocio e associe cada um a uma perspectiva BSC.")
+    st.caption("Defina quantos objetivos serao analisados, atribua pesos em escala aberta e descreva cada objetivo.")
     objectives = st.session_state.objectives.copy()
     if "Perspectiva" not in objectives.columns:
         objectives["Perspectiva"] = st.session_state.perspectives[0] if st.session_state.perspectives else ""
     if "Peso relativo" not in objectives.columns:
         objectives["Peso relativo"] = 1.0
+    if "Descricao" not in objectives.columns:
+        objectives["Descricao"] = ""
+    objective_count = st.number_input(
+        "Quantidade de objetivos estrategicos",
+        min_value=1,
+        value=max(1, len(objectives)),
+        step=1,
+    )
+    objectives = objectives.reset_index(drop=True)
+    desired_count = int(objective_count)
+    if len(objectives) < desired_count:
+        for index in range(len(objectives), desired_count):
+            objectives.loc[index, "Objetivo estrategico"] = f"Objetivo {index + 1}"
+            objectives.loc[index, "Perspectiva"] = st.session_state.perspectives[index % len(st.session_state.perspectives)]
+            objectives.loc[index, "Peso relativo"] = 1.0
+            objectives.loc[index, "Descricao"] = ""
+    elif len(objectives) > desired_count:
+        objectives = objectives.iloc[:desired_count].copy()
+
     edited = st.data_editor(
-        objectives,
+        objectives[["Objetivo estrategico", "Peso relativo", "Descricao"]],
         use_container_width=True,
-        num_rows="dynamic",
         hide_index=True,
         column_config={
             "Objetivo estrategico": st.column_config.TextColumn("Objetivo estrategico", required=True),
-            "Perspectiva": st.column_config.SelectboxColumn("Perspectiva BSC", options=st.session_state.perspectives, required=True),
-            "Peso relativo": st.column_config.NumberColumn("Peso relativo", min_value=0.0, step=0.1, format="%.2f"),
+            "Peso relativo": st.column_config.NumberColumn(
+                "Peso relativo (escala aberta)",
+                min_value=0.0,
+                step=0.1,
+                format="%.2f",
+                help="Use qualquer escala de importancia. Os pesos serao normalizados dentro da perspectiva BSC.",
+            ),
             "Descricao": st.column_config.TextColumn("Descricao"),
         },
     )
-    edited = edited.dropna(how="all").fillna("")
+    edited = edited.dropna(how="all").fillna("").reset_index(drop=True)
+    perspective_data = pd.DataFrame(
+        {
+            "Objetivo estrategico": edited["Objetivo estrategico"],
+            "Perspectiva": objectives["Perspectiva"].iloc[: len(edited)].reset_index(drop=True),
+        }
+    )
+    with st.expander("Atribuir perspectiva BSC aos objetivos", expanded=False):
+        st.caption("Campo metodologico recolhido: associe cada objetivo a uma perspectiva BSC.")
+        perspective_data = st.data_editor(
+            perspective_data,
+            use_container_width=True,
+            hide_index=True,
+            disabled=["Objetivo estrategico"],
+            column_config={
+                "Objetivo estrategico": st.column_config.TextColumn("Objetivo estrategico"),
+                "Perspectiva": st.column_config.SelectboxColumn("Perspectiva BSC", options=st.session_state.perspectives, required=True),
+            },
+        )
+    edited["Perspectiva"] = perspective_data["Perspectiva"].reset_index(drop=True)
+    edited = edited[["Objetivo estrategico", "Perspectiva", "Peso relativo", "Descricao"]]
     st.session_state.objectives = edited
     return edited
 
 
 def perspective_inputs() -> None:
-    st.subheader("Perspectivas BSC")
-    st.caption("Estrutura fixa do Balanced Scorecard utilizada como criterio estrategico do SAPEVO-BSC.")
     st.session_state.perspectives = BSC_PERSPECTIVES.copy()
-    cols = st.columns(len(st.session_state.perspectives))
-    for column, perspective in zip(cols, st.session_state.perspectives):
-        with column:
-            st.markdown(f"**{perspective}**")
 
 
 def evaluator_inputs() -> None:
