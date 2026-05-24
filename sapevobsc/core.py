@@ -76,12 +76,123 @@ def consolidate_sapevo_weights(matrices: Iterable[pd.DataFrame]) -> WeightResult
     return WeightResult(weights=weights, evaluator_vectors=evaluator_vectors)
 
 
+def project_name(row: pd.Series) -> str:
+    return str(row.get("Projeto", row.get("Acao/Projeto", ""))).strip()
+
+
+def objective_name(row: pd.Series) -> str:
+    return str(row.get("Objetivo/KPI", row.get("Objetivo estrategico", ""))).strip()
+
+
 def project_label(row: pd.Series) -> str:
-    project = str(row.get("Projeto", "")).strip()
-    objective = str(row.get("Objetivo/KPI", "")).strip()
+    project = project_name(row)
+    objective = objective_name(row)
     if project and objective:
         return f"{project} - {objective}"
     return project or objective
+
+
+def compute_objective_weights(objectives: pd.DataFrame, perspective_weights: pd.DataFrame) -> pd.DataFrame:
+    """Calculate global objective weights from BSC perspective weights and local objective weights."""
+    if objectives.empty or perspective_weights.empty:
+        return pd.DataFrame()
+
+    objective_rows = objectives.copy().fillna("")
+    if "Peso relativo" not in objective_rows.columns:
+        objective_rows["Peso relativo"] = 1.0
+    objective_rows["Peso relativo"] = pd.to_numeric(objective_rows["Peso relativo"], errors="coerce").fillna(1.0)
+    objective_rows["Peso relativo"] = objective_rows["Peso relativo"].clip(lower=0.0)
+
+    perspective_map = dict(zip(perspective_weights["Perspectiva"], perspective_weights["Peso"]))
+    rows = []
+    for perspective, group in objective_rows.groupby("Perspectiva", dropna=False):
+        perspective = str(perspective)
+        total = float(group["Peso relativo"].sum())
+        local_weights = group["Peso relativo"] / total if total else pd.Series([1.0 / len(group)] * len(group), index=group.index)
+        perspective_weight = float(perspective_map.get(perspective, 0.0))
+
+        for index, row in group.iterrows():
+            local_weight = float(local_weights.loc[index])
+            global_weight = perspective_weight * local_weight
+            rows.append(
+                {
+                    "Objetivo estrategico": str(row.get("Objetivo estrategico", "")),
+                    "Perspectiva": perspective,
+                    "Peso perspectiva": round(perspective_weight, 6),
+                    "Peso local objetivo": round(local_weight, 6),
+                    "Peso objetivo": round(global_weight, 6),
+                    "Peso objetivo (%)": round(100 * global_weight, 2),
+                }
+            )
+
+    return pd.DataFrame(rows).sort_values("Peso objetivo", ascending=False).reset_index(drop=True)
+
+
+def normalize_fuzzy_alignment(alignment: pd.DataFrame, objective_names: list[str]) -> pd.DataFrame:
+    if alignment.empty:
+        return alignment
+
+    normalized = alignment.copy()
+    for objective in objective_names:
+        if objective not in normalized.columns:
+            normalized[objective] = 0.0
+        normalized[objective] = pd.to_numeric(normalized[objective], errors="coerce").fillna(0.0).clip(0.0, 1.0)
+
+    row_sums = normalized[objective_names].sum(axis=1)
+    for index, total in row_sums.items():
+        if float(total) > 0:
+            normalized.loc[index, objective_names] = normalized.loc[index, objective_names] / float(total)
+    return normalized
+
+
+def consolidate_fuzzy_project_weights(
+    projects: pd.DataFrame,
+    objective_weights: pd.DataFrame,
+    alignment: pd.DataFrame,
+) -> pd.DataFrame:
+    """Calculate project weights by fuzzy membership in strategic objectives."""
+    if projects.empty or objective_weights.empty or alignment.empty:
+        return pd.DataFrame()
+
+    objective_names = objective_weights["Objetivo estrategico"].astype(str).tolist()
+    normalized_alignment = normalize_fuzzy_alignment(alignment, objective_names)
+    objective_weight_map = dict(zip(objective_weights["Objetivo estrategico"], objective_weights["Peso objetivo"]))
+    objective_perspective_map = dict(zip(objective_weights["Objetivo estrategico"], objective_weights["Perspectiva"]))
+    objective_perspective_weight_map = dict(zip(objective_weights["Objetivo estrategico"], objective_weights["Peso perspectiva"]))
+
+    rows = []
+    for _, project in projects.iterrows():
+        name = project_name(project)
+        match = normalized_alignment[normalized_alignment["Acao/Projeto"].astype(str) == name]
+        memberships = match.iloc[0] if not match.empty else pd.Series(dtype=object)
+        contributions = {
+            objective: float(memberships.get(objective, 0.0)) * float(objective_weight_map.get(objective, 0.0))
+            for objective in objective_names
+        }
+        final_weight = sum(contributions.values())
+        dominant_objective = max(contributions, key=contributions.get) if contributions else objective_name(project)
+        dominant_perspective = str(objective_perspective_map.get(dominant_objective, project.get("Perspectiva", "")))
+
+        rows.append(
+            {
+                "Projeto": name,
+                "Objetivo/KPI": dominant_objective,
+                "Projeto/KPI": name,
+                "Perspectiva": dominant_perspective,
+                "Peso perspectiva": round(float(objective_perspective_weight_map.get(dominant_objective, 0.0)), 6),
+                "Peso local SAPEVO-M": round(float(memberships.get(dominant_objective, 0.0) if not memberships.empty else 0.0), 6),
+                "Peso SAPEVO-BSC": round(final_weight, 6),
+                "Peso SAPEVO-BSC (%)": round(100 * final_weight, 2),
+                "Objetivo dominante": dominant_objective,
+                "Particao fuzzy": "; ".join(
+                    f"{objective}: {float(memberships.get(objective, 0.0)):.2f}"
+                    for objective in objective_names
+                    if float(memberships.get(objective, 0.0)) > 0
+                ),
+            }
+        )
+
+    return pd.DataFrame(rows).sort_values("Peso SAPEVO-BSC", ascending=False).reset_index(drop=True)
 
 
 def consolidate_project_weights(
@@ -125,8 +236,8 @@ def consolidate_project_weights(
             global_weight = perspective_weight * local_weight
             rows.append(
                 {
-                    "Projeto": row.get("Projeto", ""),
-                    "Objetivo/KPI": row.get("Objetivo/KPI", ""),
+                    "Projeto": project_name(row),
+                    "Objetivo/KPI": objective_name(row),
                     "Projeto/KPI": label,
                     "Perspectiva": perspective,
                     "Peso perspectiva": round(perspective_weight, 6),
@@ -175,27 +286,42 @@ def rank_projects(projects: pd.DataFrame, weights: pd.DataFrame, project_weights
 
     weight_map = dict(zip(weights["Perspectiva"], weights["Peso"]))
     project_weight_map = {}
+    project_weight_by_name = {}
+    project_meta_by_name = {}
     if project_weights is not None and not project_weights.empty:
         project_weight_map = {
             (str(row.get("Projeto", "")), str(row.get("Objetivo/KPI", "")), str(row.get("Perspectiva", ""))): float(row.get("Peso SAPEVO-BSC", 0.0))
             for _, row in project_weights.iterrows()
         }
+        project_weight_by_name = {
+            str(row.get("Projeto", "")): float(row.get("Peso SAPEVO-BSC", 0.0))
+            for _, row in project_weights.iterrows()
+        }
+        project_meta_by_name = {
+            str(row.get("Projeto", "")): {
+                "Objetivo/KPI": str(row.get("Objetivo/KPI", "")),
+                "Perspectiva": str(row.get("Perspectiva", "")),
+            }
+            for _, row in project_weights.iterrows()
+        }
 
     rows = []
     for _, project in projects.iterrows():
-        perspective = str(project.get("Perspectiva", ""))
+        name = project_name(project)
+        meta = project_meta_by_name.get(name, {})
+        perspective = str(meta.get("Perspectiva", project.get("Perspectiva", "")))
         fallback_weight = float(weight_map.get(perspective, 0.0))
         weight = project_weight_map.get(
-            (str(project.get("Projeto", "")), str(project.get("Objetivo/KPI", "")), perspective),
-            fallback_weight,
+            (name, objective_name(project), perspective),
+            project_weight_by_name.get(name, fallback_weight),
         )
         impact = scale_value(str(project.get("Impacto", "")))
         probability = scale_value(str(project.get("Probabilidade", "")))
         index = weight * impact * probability
         rows.append(
             {
-                "Projeto": project.get("Projeto", ""),
-                "Objetivo/KPI": project.get("Objetivo/KPI", ""),
+                "Projeto": name,
+                "Objetivo/KPI": meta.get("Objetivo/KPI", objective_name(project)),
                 "Perspectiva": perspective,
                 "Natureza": project.get("Natureza", "Oportunidade"),
                 "Peso SAPEVO-BSC": round(weight, 6),
@@ -238,6 +364,7 @@ def strategic_conclusion(ranking: pd.DataFrame, weights: pd.DataFrame) -> str:
 
     return (
         f"A priorizacao indica uma carteira {intensity}, com maior peso estrategico associado a "
-        f"{leading_perspective}. O projeto mais prioritario e {top['Projeto']}, vinculado a "
-        f"{top['Perspectiva']}, combinando peso SAPEVO-BSC, impacto e probabilidade."
+        f"{leading_perspective}. A acao/projeto mais prioritaria e {top['Projeto']}, associada ao "
+        f"objetivo estrategico {top.get('Objetivo/KPI', '')} e vinculada a {top['Perspectiva']}, "
+        f"combinando peso SAPEVO-BSC, impacto e probabilidade."
     )
