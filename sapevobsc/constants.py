@@ -12,6 +12,8 @@ BSC_PERSPECTIVES = [
     "Aprendizado e Crescimento",
 ]
 
+PROJECT_NATURES = ["Ameaca", "Oportunidade"]
+
 SAPEVO_SCALE = {
     "Absolutamente pior": -3,
     "Muito pior": -2,
@@ -30,4 +32,18 @@ IMPACT_PROBABILITY_SCALE = {
     "Moderado": 0.19,
     "Alto": 0.26,
     "Muito alto": 0.38,
+}
+
+PROBABILITY_DISPLAY = {
+    "Muito baixo": "10%",
+    "Baixo": "30%",
+    "Moderado": "50%",
+    "Alto": "70%",
+    "Muito alto": "90%",
+}
+
+RISK_CLASS_COLORS = {
+    "Baixa": "#a8d08d",
+    "Media": "#ffd966",
+    "Alta": "#ff7c80",
 }

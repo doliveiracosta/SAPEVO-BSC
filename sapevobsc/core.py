@@ -74,6 +74,28 @@ def scale_value(label: str) -> float:
     return float(IMPACT_PROBABILITY_SCALE.get(label, 0.0))
 
 
+THREAT_MATRIX = {
+    "Muito alto": {"Muito baixo": "Media", "Baixo": "Media", "Moderado": "Alta", "Alto": "Alta", "Muito alto": "Alta"},
+    "Alto": {"Muito baixo": "Baixa", "Baixo": "Media", "Moderado": "Media", "Alto": "Alta", "Muito alto": "Alta"},
+    "Moderado": {"Muito baixo": "Baixa", "Baixo": "Baixa", "Moderado": "Media", "Alto": "Alta", "Muito alto": "Alta"},
+    "Baixo": {"Muito baixo": "Baixa", "Baixo": "Baixa", "Moderado": "Media", "Alto": "Media", "Muito alto": "Alta"},
+    "Muito baixo": {"Muito baixo": "Baixa", "Baixo": "Baixa", "Moderado": "Baixa", "Alto": "Baixa", "Muito alto": "Media"},
+}
+
+OPPORTUNITY_MATRIX = {
+    "Muito alto": {"Muito alto": "Baixa", "Alto": "Baixa", "Moderado": "Baixa", "Baixo": "Media", "Muito baixo": "Media"},
+    "Alto": {"Muito alto": "Baixa", "Alto": "Baixa", "Moderado": "Media", "Baixo": "Media", "Muito baixo": "Alta"},
+    "Moderado": {"Muito alto": "Baixa", "Alto": "Baixa", "Moderado": "Media", "Baixo": "Alta", "Muito baixo": "Alta"},
+    "Baixo": {"Muito alto": "Baixa", "Alto": "Media", "Moderado": "Media", "Baixo": "Alta", "Muito baixo": "Alta"},
+    "Muito baixo": {"Muito alto": "Media", "Alto": "Alta", "Moderado": "Alta", "Baixo": "Alta", "Muito baixo": "Alta"},
+}
+
+
+def impact_probability_classification(nature: str, impact: str, probability: str) -> str:
+    matrix = THREAT_MATRIX if str(nature).lower().startswith("ame") else OPPORTUNITY_MATRIX
+    return matrix.get(probability, {}).get(impact, "Baixa")
+
+
 def rank_projects(projects: pd.DataFrame, weights: pd.DataFrame) -> pd.DataFrame:
     if projects.empty or weights.empty:
         return pd.DataFrame()
@@ -91,9 +113,15 @@ def rank_projects(projects: pd.DataFrame, weights: pd.DataFrame) -> pd.DataFrame
                 "Projeto": project.get("Projeto", ""),
                 "Objetivo/KPI": project.get("Objetivo/KPI", ""),
                 "Perspectiva": perspective,
+                "Natureza": project.get("Natureza", "Oportunidade"),
                 "Peso SAPEVO-BSC": round(weight, 6),
                 "Impacto": project.get("Impacto", ""),
                 "Probabilidade": project.get("Probabilidade", ""),
+                "Classificacao I/P": impact_probability_classification(
+                    str(project.get("Natureza", "Oportunidade")),
+                    str(project.get("Impacto", "")),
+                    str(project.get("Probabilidade", "")),
+                ),
                 "Impacto (valor)": impact,
                 "Probabilidade (valor)": probability,
                 "Indice de prioridade": round(index, 8),

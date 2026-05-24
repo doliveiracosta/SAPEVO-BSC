@@ -75,15 +75,15 @@ def write_pdf_report(
     story.append(Spacer(1, 10))
 
     story.append(paragraph("3. Ranking de projetos", "Heading1"))
-    rank_rows = [["Rank", "Projeto", "Perspectiva", "Impacto", "Prob.", "Indice"]]
+    rank_rows = [["Rank", "Projeto", "Perspectiva", "Natureza", "Classe I/P", "Indice"]]
     for _, row in ranking.iterrows():
         rank_rows.append(
             [
                 int(row["Ranking"]),
                 row["Projeto"],
                 row["Perspectiva"],
-                row["Impacto"],
-                row["Probabilidade"],
+                row.get("Natureza", ""),
+                row.get("Classificacao I/P", ""),
                 f"{float(row['Indice de prioridade']):.6f}",
             ]
         )
