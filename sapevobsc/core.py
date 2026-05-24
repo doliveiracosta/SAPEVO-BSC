@@ -16,6 +16,12 @@ class WeightResult:
     evaluator_vectors: pd.DataFrame
 
 
+@dataclass(frozen=True)
+class ProjectWeightResult:
+    project_weights: pd.DataFrame
+    evaluator_vectors: dict[str, pd.DataFrame]
+
+
 def normalize_positive(values: pd.Series) -> pd.Series:
     """Convert ordinal net scores into positive normalized weights."""
     if values.empty:
@@ -70,6 +76,73 @@ def consolidate_sapevo_weights(matrices: Iterable[pd.DataFrame]) -> WeightResult
     return WeightResult(weights=weights, evaluator_vectors=evaluator_vectors)
 
 
+def project_label(row: pd.Series) -> str:
+    project = str(row.get("Projeto", "")).strip()
+    objective = str(row.get("Objetivo/KPI", "")).strip()
+    if project and objective:
+        return f"{project} - {objective}"
+    return project or objective
+
+
+def consolidate_project_weights(
+    projects: pd.DataFrame,
+    perspective_weights: pd.DataFrame,
+    matrices_by_perspective: dict[str, list[pd.DataFrame]],
+) -> ProjectWeightResult:
+    """Consolidate local SAPEVO-M weights for projects/KPIs within each BSC perspective."""
+    if projects.empty or perspective_weights.empty:
+        return ProjectWeightResult(pd.DataFrame(), {})
+
+    perspective_map = dict(zip(perspective_weights["Perspectiva"], perspective_weights["Peso"]))
+    evaluator_vectors_by_perspective: dict[str, pd.DataFrame] = {}
+    rows = []
+
+    for perspective, group in projects.groupby("Perspectiva", dropna=False):
+        perspective = str(perspective)
+        group = group.reset_index(drop=True)
+        labels = [project_label(row) or f"Item {index + 1}" for index, row in group.iterrows()]
+        matrices = matrices_by_perspective.get(perspective, [])
+
+        if len(labels) <= 1:
+            local_weights = pd.Series([1.0], index=labels)
+            evaluator_vectors = pd.DataFrame({"Peso local": local_weights})
+        else:
+            valid_matrices = [matrix for matrix in matrices if not matrix.empty]
+            if valid_matrices:
+                result = consolidate_sapevo_weights(valid_matrices)
+                local_weights = result.weights.set_index("Perspectiva")["Peso"].reindex(labels).fillna(0.0)
+                evaluator_vectors = result.evaluator_vectors
+            else:
+                local_weights = pd.Series([1.0 / len(labels)] * len(labels), index=labels)
+                evaluator_vectors = pd.DataFrame({"Peso local": local_weights})
+
+        evaluator_vectors_by_perspective[perspective] = evaluator_vectors
+        perspective_weight = float(perspective_map.get(perspective, 0.0))
+
+        for index, row in group.iterrows():
+            label = labels[index]
+            local_weight = float(local_weights.get(label, 0.0))
+            global_weight = perspective_weight * local_weight
+            rows.append(
+                {
+                    "Projeto": row.get("Projeto", ""),
+                    "Objetivo/KPI": row.get("Objetivo/KPI", ""),
+                    "Projeto/KPI": label,
+                    "Perspectiva": perspective,
+                    "Peso perspectiva": round(perspective_weight, 6),
+                    "Peso local SAPEVO-M": round(local_weight, 6),
+                    "Peso SAPEVO-BSC": round(global_weight, 6),
+                    "Peso SAPEVO-BSC (%)": round(100 * global_weight, 2),
+                }
+            )
+
+    project_weights = pd.DataFrame(rows).sort_values(
+        ["Peso SAPEVO-BSC", "Projeto/KPI"],
+        ascending=[False, True],
+    )
+    return ProjectWeightResult(project_weights=project_weights.reset_index(drop=True), evaluator_vectors=evaluator_vectors_by_perspective)
+
+
 def scale_value(label: str) -> float:
     return float(IMPACT_PROBABILITY_SCALE.get(label, 0.0))
 
@@ -96,15 +169,26 @@ def impact_probability_classification(nature: str, impact: str, probability: str
     return matrix.get(probability, {}).get(impact, "Baixa")
 
 
-def rank_projects(projects: pd.DataFrame, weights: pd.DataFrame) -> pd.DataFrame:
+def rank_projects(projects: pd.DataFrame, weights: pd.DataFrame, project_weights: pd.DataFrame | None = None) -> pd.DataFrame:
     if projects.empty or weights.empty:
         return pd.DataFrame()
 
     weight_map = dict(zip(weights["Perspectiva"], weights["Peso"]))
+    project_weight_map = {}
+    if project_weights is not None and not project_weights.empty:
+        project_weight_map = {
+            (str(row.get("Projeto", "")), str(row.get("Objetivo/KPI", "")), str(row.get("Perspectiva", ""))): float(row.get("Peso SAPEVO-BSC", 0.0))
+            for _, row in project_weights.iterrows()
+        }
+
     rows = []
     for _, project in projects.iterrows():
         perspective = str(project.get("Perspectiva", ""))
-        weight = float(weight_map.get(perspective, 0.0))
+        fallback_weight = float(weight_map.get(perspective, 0.0))
+        weight = project_weight_map.get(
+            (str(project.get("Projeto", "")), str(project.get("Objetivo/KPI", "")), perspective),
+            fallback_weight,
+        )
         impact = scale_value(str(project.get("Impacto", "")))
         probability = scale_value(str(project.get("Probabilidade", "")))
         index = weight * impact * probability

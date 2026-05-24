@@ -18,6 +18,7 @@ def write_pdf_report(
     *,
     project: dict,
     weights: pd.DataFrame,
+    project_weights: pd.DataFrame | None = None,
     ranking: pd.DataFrame,
 ) -> None:
     from reportlab.lib import colors
@@ -67,14 +68,29 @@ def write_pdf_report(
     story.append(table(rows, [4 * cm, 11.7 * cm]))
     story.append(Spacer(1, 10))
 
-    story.append(paragraph("2. Pesos SAPEVO-BSC", "Heading1"))
+    story.append(paragraph("2. Pesos das perspectivas BSC", "Heading1"))
     weight_rows = [["Perspectiva", "Peso", "Peso (%)"]]
     for _, row in weights.iterrows():
         weight_rows.append([row["Perspectiva"], f"{float(row['Peso']):.4f}", f"{float(row['Peso (%)']):.2f}%"])
     story.append(table(weight_rows, [7 * cm, 4 * cm, 4.7 * cm]))
     story.append(Spacer(1, 10))
 
-    story.append(paragraph("3. Ranking de projetos", "Heading1"))
+    if project_weights is not None and not project_weights.empty:
+        story.append(paragraph("3. Pesos SAPEVO-BSC dos projetos/KPIs", "Heading1"))
+        project_weight_rows = [["Projeto/KPI", "Perspectiva", "Peso local", "Peso final"]]
+        for _, row in project_weights.iterrows():
+            project_weight_rows.append(
+                [
+                    row["Projeto/KPI"],
+                    row["Perspectiva"],
+                    f"{float(row['Peso local SAPEVO-M']):.4f}",
+                    f"{float(row['Peso SAPEVO-BSC']):.4f}",
+                ]
+            )
+        story.append(table(project_weight_rows, [5.7 * cm, 4.4 * cm, 2.8 * cm, 2.8 * cm]))
+        story.append(Spacer(1, 10))
+
+    story.append(paragraph("4. Ranking de projetos", "Heading1"))
     rank_rows = [["Rank", "Projeto", "Perspectiva", "Natureza", "Classe I/P", "Indice"]]
     for _, row in ranking.iterrows():
         rank_rows.append(
@@ -90,7 +106,7 @@ def write_pdf_report(
     story.append(table(rank_rows, [1.2 * cm, 4.2 * cm, 4.0 * cm, 2.1 * cm, 2.1 * cm, 2.1 * cm]))
     story.append(Spacer(1, 10))
 
-    story.append(paragraph("4. Conclusao consultiva", "Heading1"))
+    story.append(paragraph("5. Conclusao consultiva", "Heading1"))
     story.append(paragraph(strategic_conclusion(ranking, weights)))
     doc.build(story)
 
