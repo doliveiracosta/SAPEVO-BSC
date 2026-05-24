@@ -98,17 +98,11 @@ def compute_objective_weights(objectives: pd.DataFrame, perspective_weights: pd.
         return pd.DataFrame()
 
     objective_rows = objectives.copy().fillna("")
-    if "Peso relativo" not in objective_rows.columns:
-        objective_rows["Peso relativo"] = 1.0
-    objective_rows["Peso relativo"] = pd.to_numeric(objective_rows["Peso relativo"], errors="coerce").fillna(1.0)
-    objective_rows["Peso relativo"] = objective_rows["Peso relativo"].clip(lower=0.0)
-
     perspective_map = dict(zip(perspective_weights["Perspectiva"], perspective_weights["Peso"]))
     rows = []
     for perspective, group in objective_rows.groupby("Perspectiva", dropna=False):
         perspective = str(perspective)
-        total = float(group["Peso relativo"].sum())
-        local_weights = group["Peso relativo"] / total if total else pd.Series([1.0 / len(group)] * len(group), index=group.index)
+        local_weights = pd.Series([1.0 / len(group)] * len(group), index=group.index)
         perspective_weight = float(perspective_map.get(perspective, 0.0))
 
         for index, row in group.iterrows():
