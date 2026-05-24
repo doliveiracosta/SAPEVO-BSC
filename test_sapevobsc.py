@@ -30,12 +30,13 @@ class SAPEVOBSCTests(unittest.TestCase):
         )
         projects = pd.DataFrame(
             [
-                {"Projeto": "P1", "Objetivo/KPI": "ROI", "Perspectiva": "Financeira", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
-                {"Projeto": "P2", "Objetivo/KPI": "NPS", "Perspectiva": "Clientes", "Impacto": "Baixo", "Probabilidade": "Baixo"},
+                {"Projeto": "P1", "Objetivo/KPI": "ROI", "Perspectiva": "Financeira", "Natureza": "Oportunidade", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
+                {"Projeto": "P2", "Objetivo/KPI": "NPS", "Perspectiva": "Clientes", "Natureza": "Ameaca", "Impacto": "Baixo", "Probabilidade": "Baixo"},
             ]
         )
         ranking = rank_projects(projects, weights)
         self.assertEqual(ranking.iloc[0]["Projeto"], "P1")
+        self.assertIn(ranking.iloc[0]["Classificacao I/P"], {"Baixa", "Media", "Alta"})
         self.assertGreater(float(ranking.iloc[0]["Indice de prioridade"]), float(ranking.iloc[1]["Indice de prioridade"]))
 
 
