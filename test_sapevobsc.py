@@ -76,8 +76,8 @@ class SAPEVOBSCTests(unittest.TestCase):
         )
         objectives = pd.DataFrame(
             [
-                {"Objetivo estrategico": "ObjX", "Perspectiva": "Financeira", "Peso relativo": 1.0},
-                {"Objetivo estrategico": "ObjY", "Perspectiva": "Clientes", "Peso relativo": 1.0},
+                {"Objetivo estrategico": "ObjX", "Perspectiva": "Financeira"},
+                {"Objetivo estrategico": "ObjY", "Perspectiva": "Clientes"},
             ]
         )
         projects = pd.DataFrame(
