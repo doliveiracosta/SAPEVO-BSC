@@ -409,28 +409,114 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
         linked["Objetivo estrategico"].isin(objective_options),
         objective_options[0],
     )
-    link_table = linked[["Acao/Projeto", "Objetivo estrategico", "Natureza", "Impacto", "Probabilidade"]].copy()
-    link_table = st.data_editor(
-        link_table,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto", required=True),
-            "Objetivo estrategico": st.column_config.SelectboxColumn(
-                "Objetivo/indicador estrategico",
-                options=objective_options,
-                required=True,
-            ),
-            "Natureza": st.column_config.SelectboxColumn("Natureza", options=PROJECT_NATURES, required=True),
-            "Impacto": st.column_config.SelectboxColumn("Impacto", options=list(IMPACT_PROBABILITY_SCALE), required=True),
-            "Probabilidade": st.column_config.SelectboxColumn("Probabilidade", options=list(IMPACT_PROBABILITY_SCALE), required=True),
-        },
-    )
-    linked["Objetivo estrategico"] = link_table["Objetivo estrategico"].reset_index(drop=True)
-    linked["Objetivo/KPI"] = linked["Objetivo estrategico"]
-    linked["Natureza"] = link_table["Natureza"].reset_index(drop=True)
-    linked["Impacto"] = link_table["Impacto"].reset_index(drop=True)
-    linked["Probabilidade"] = link_table["Probabilidade"].reset_index(drop=True)
+    header = st.columns([1.1, 1.7, 1.0, 1.0, 1.0, 0.85, 0.75])
+    header[0].markdown("**Acao/Projeto**")
+    header[1].markdown("**Objetivo/indicador estrategico**")
+    header[2].markdown("**Natureza**")
+    header[3].markdown("**Impacto**")
+    header[4].markdown("**Probabilidade**")
+    header[5].markdown("**Classe I/P**")
+    header[6].markdown("**Indice I/P**")
+
+    rows = []
+    impact_options = list(IMPACT_PROBABILITY_SCALE)
+    for index, row in linked.iterrows():
+        project_value = str(row.get("Acao/Projeto", "") or f"P{index + 1}")
+        objective_value = str(row.get("Objetivo estrategico", objective_options[0]))
+        nature_value = str(row.get("Natureza", "Oportunidade"))
+        impact_value = str(row.get("Impacto", "Moderado"))
+        probability_value = str(row.get("Probabilidade", "Moderado"))
+        if objective_value not in objective_options:
+            objective_value = objective_options[0]
+        if nature_value not in PROJECT_NATURES:
+            nature_value = PROJECT_NATURES[0]
+        if impact_value not in impact_options:
+            impact_value = "Moderado"
+        if probability_value not in impact_options:
+            probability_value = "Moderado"
+
+        col1, col2, col3, col4, col5, col6, col7 = st.columns([1.1, 1.7, 1.0, 1.0, 1.0, 0.85, 0.75])
+        project = col1.text_input(
+            f"Acao/Projeto {index + 1}",
+            value=project_value,
+            label_visibility="collapsed",
+            key=f"project_name_{index}",
+        )
+        objective = col2.selectbox(
+            f"Objetivo/indicador {index + 1}",
+            options=objective_options,
+            index=objective_options.index(objective_value),
+            label_visibility="collapsed",
+            key=f"project_objective_{index}",
+        )
+        nature = col3.selectbox(
+            f"Natureza {index + 1}",
+            options=PROJECT_NATURES,
+            index=PROJECT_NATURES.index(nature_value),
+            label_visibility="collapsed",
+            key=f"project_nature_{index}",
+        )
+        impact = col4.selectbox(
+            f"Impacto {index + 1}",
+            options=impact_options,
+            index=impact_options.index(impact_value),
+            label_visibility="collapsed",
+            key=f"project_impact_{index}",
+        )
+        probability = col5.selectbox(
+            f"Probabilidade {index + 1}",
+            options=impact_options,
+            index=impact_options.index(probability_value),
+            label_visibility="collapsed",
+            key=f"project_probability_{index}",
+        )
+        classification = impact_probability_classification(nature, impact, probability)
+        ip_index = round(impact_probability_index(nature, impact, probability), 4)
+        color = RISK_CLASS_COLORS.get(classification, "#e5e7eb")
+        col6.markdown(
+            f"""
+            <div style="
+                background:{color};
+                color:#111827;
+                min-height:38px;
+                border-radius:6px;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                font-weight:700;
+                border:1px solid rgba(17,24,39,.12);
+            ">{classification}</div>
+            """,
+            unsafe_allow_html=True,
+        )
+        col7.markdown(
+            f"""
+            <div style="
+                min-height:38px;
+                border-radius:6px;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                background:#f8fafc;
+                border:1px solid #e5e7eb;
+            ">{ip_index:.4f}</div>
+            """,
+            unsafe_allow_html=True,
+        )
+        rows.append(
+            {
+                "Acao/Projeto": project,
+                "Objetivo estrategico": objective,
+                "Objetivo/KPI": objective,
+                "Natureza": nature,
+                "Impacto": impact,
+                "Probabilidade": probability,
+                "Classe I/P": classification,
+                "Indice I/P": ip_index,
+            }
+        )
+
+    linked = pd.DataFrame(rows).dropna(how="all").fillna("").reset_index(drop=True)
     objective_weight_map = {}
     objective_weights = st.session_state.get("objective_weights", pd.DataFrame())
     if (
@@ -440,77 +526,8 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
     ):
         objective_weight_map = dict(zip(objective_weights["Objetivo estrategico"], objective_weights["Perspectiva dominante"]))
     linked["Perspectiva"] = linked["Objetivo estrategico"].map(objective_weight_map).fillna("")
-    linked["Classe I/P"] = [
-        impact_probability_classification(row["Natureza"], row["Impacto"], row["Probabilidade"])
-        for _, row in linked.iterrows()
-    ]
-    linked["Indice I/P"] = [
-        round(impact_probability_index(row["Natureza"], row["Impacto"], row["Probabilidade"]), 4)
-        for _, row in linked.iterrows()
-    ]
-    render_ip_assessment(linked)
     st.session_state.projects = linked
     return linked
-
-
-def render_ip_assessment(projects: pd.DataFrame) -> None:
-    if projects.empty or "Classe I/P" not in projects.columns:
-        return
-
-    rows = []
-    for _, row in projects.iterrows():
-        classification = str(row.get("Classe I/P", "Baixa"))
-        color = RISK_CLASS_COLORS.get(classification, "#e5e7eb")
-        text_color = "#111827"
-        rows.append(
-            "<tr>"
-            f"<td>{row.get('Acao/Projeto', row.get('Projeto', ''))}</td>"
-            f"<td>{row.get('Objetivo estrategico', row.get('Objetivo/KPI', ''))}</td>"
-            f"<td>{row.get('Natureza', '')}</td>"
-            f"<td>{row.get('Impacto', '')}</td>"
-            f"<td>{row.get('Probabilidade', '')}</td>"
-            f'<td style="background:{color}; color:{text_color}; font-weight:700;">{classification}</td>'
-            f"<td>{float(row.get('Indice I/P', 0.0)):.4f}</td>"
-            "</tr>"
-        )
-
-    st.markdown(
-        f"""
-        <style>
-        .ip-assessment {{
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.86rem;
-            margin: 0.55rem 0 1rem;
-        }}
-        .ip-assessment th, .ip-assessment td {{
-            border: 1px solid #d1d5db;
-            padding: 8px 10px;
-            text-align: left;
-        }}
-        .ip-assessment th {{
-            background: #dbeafe;
-            color: #111827;
-            font-weight: 700;
-        }}
-        </style>
-        <table class="ip-assessment">
-            <thead>
-                <tr>
-                    <th>Acao/Projeto</th>
-                    <th>Objetivo/indicador</th>
-                    <th>Natureza</th>
-                    <th>Impacto</th>
-                    <th>Probabilidade</th>
-                    <th>Classe I/P</th>
-                    <th>Indice I/P</th>
-                </tr>
-            </thead>
-            <tbody>{''.join(rows)}</tbody>
-        </table>
-        """,
-        unsafe_allow_html=True,
-    )
 
 
 def objective_comparison_inputs(objectives: pd.DataFrame) -> dict[str, list[pd.DataFrame]]:
