@@ -1,7 +1,7 @@
 """Constants for the SAPEVO-BSC prioritizer."""
 
 APP_NAME = "SAPEVO-BSC Prioritizer"
-APP_SUBTITLE = "Priorizacao estrategica com BSC, SAPEVO-M e matriz Impacto/Probabilidade"
+APP_SUBTITLE = "Priorizacao estrategica com SAPEVO-BSC"
 APP_OWNER = "David de Oliveira Costa"
 APP_OWNER_LABEL = f"Desenvolvido por {APP_OWNER}, Doutorando em Engenharia de Computacao, 2026."
 
@@ -31,4 +31,3 @@ IMPACT_PROBABILITY_SCALE = {
     "Alto": 0.26,
     "Muito alto": 0.38,
 }
-
