@@ -4,7 +4,9 @@ import pandas as pd
 
 from sapevobsc.core import (
     build_pairwise_matrix,
+    calculate_project_weights_from_objectives,
     compute_objective_weights,
+    consolidate_objective_sapevo_weights,
     consolidate_fuzzy_project_weights,
     consolidate_project_weights,
     consolidate_sapevo_weights,
@@ -93,6 +95,38 @@ class SAPEVOBSCTests(unittest.TestCase):
 
         expected = 0.1 * 0.7 + 0.9 * 0.3
         self.assertAlmostEqual(float(project_weights.iloc[0]["Peso SAPEVO-BSC"]), expected, places=6)
+
+    def test_objective_sapevo_weights_drive_project_weight(self):
+        perspective_weights = pd.DataFrame(
+            {
+                "Perspectiva": ["Financeira"],
+                "Peso": [0.8],
+                "Peso (%)": [80],
+            }
+        )
+        objectives = pd.DataFrame(
+            [
+                {"Objetivo estrategico": "ROI", "Perspectiva": "Financeira"},
+                {"Objetivo estrategico": "Margem", "Perspectiva": "Financeira"},
+            ]
+        )
+        matrix = build_pairwise_matrix(["ROI", "Margem"], {("ROI", "Margem"): 3})
+        objective_result = consolidate_objective_sapevo_weights(objectives, perspective_weights, {"Financeira": [matrix]})
+
+        self.assertAlmostEqual(float(objective_result.project_weights["Peso SAPEVO-BSC"].sum()), 0.8)
+        self.assertEqual(objective_result.project_weights.iloc[0]["Objetivo estrategico"], "ROI")
+
+        projects = pd.DataFrame(
+            [
+                {"Acao/Projeto": "P1", "Objetivo estrategico": "ROI", "Natureza": "Ameaca", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
+                {"Acao/Projeto": "P2", "Objetivo estrategico": "Margem", "Natureza": "Ameaca", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
+            ]
+        )
+        project_weights = calculate_project_weights_from_objectives(projects, objective_result.project_weights)
+        ranking = rank_projects(projects, perspective_weights, project_weights)
+
+        self.assertEqual(ranking.iloc[0]["Projeto"], "P1")
+        self.assertGreater(float(ranking.iloc[0]["Peso SAPEVO-BSC"]), float(ranking.iloc[1]["Peso SAPEVO-BSC"]))
 
     def test_impact_probability_inverts_for_opportunities(self):
         threat_class = impact_probability_classification("Ameaca", "Muito alto", "Muito alto")
