@@ -122,6 +122,80 @@ def compute_objective_weights(objectives: pd.DataFrame, perspective_weights: pd.
     return pd.DataFrame(rows).sort_values("Peso objetivo", ascending=False).reset_index(drop=True)
 
 
+def consolidate_objective_scores_by_perspective(
+    objectives: pd.DataFrame,
+    perspective_weights: pd.DataFrame,
+    matrices_by_perspective: dict[str, list[pd.DataFrame]],
+) -> ProjectWeightResult:
+    """Create the global objective x BSC perspective matrix and final objective priorities."""
+    if objectives.empty or perspective_weights.empty:
+        return ProjectWeightResult(pd.DataFrame(), {})
+
+    objective_labels = [
+        objective_name(row) or f"Objetivo {index + 1}"
+        for index, row in objectives.reset_index(drop=True).iterrows()
+    ]
+    perspectives = perspective_weights["Perspectiva"].astype(str).tolist()
+    perspective_weight_map = dict(zip(perspective_weights["Perspectiva"], perspective_weights["Peso"]))
+    evaluator_vectors_by_perspective: dict[str, pd.DataFrame] = {}
+    score_matrix = pd.DataFrame(0.0, index=objective_labels, columns=perspectives)
+
+    for perspective in perspectives:
+        matrices = matrices_by_perspective.get(perspective, [])
+        valid_matrices = [matrix for matrix in matrices if not matrix.empty]
+        if len(objective_labels) <= 1:
+            evaluator_vectors = pd.DataFrame({"Peso local": pd.Series([1.0], index=objective_labels)})
+            local_scores = pd.Series([1.0], index=objective_labels)
+        elif valid_matrices:
+            vectors = []
+            for index, matrix in enumerate(valid_matrices, start=1):
+                vector = evaluator_weight_vector(matrix).reindex(objective_labels).fillna(0.0)
+                vector.name = f"Avaliador {index}"
+                vectors.append(vector)
+            evaluator_vectors = pd.concat(vectors, axis=1).fillna(0.0)
+            local_scores = evaluator_vectors.mean(axis=1)
+        else:
+            local_scores = pd.Series([1.0 / len(objective_labels)] * len(objective_labels), index=objective_labels)
+            evaluator_vectors = pd.DataFrame({"Peso local": local_scores})
+
+        evaluator_vectors_by_perspective[perspective] = evaluator_vectors
+        score_matrix[perspective] = local_scores.reindex(objective_labels).fillna(0.0)
+
+    rows = []
+    for objective in objective_labels:
+        final_weight = 0.0
+        best_perspective = ""
+        best_local_score = -1.0
+        row = {
+            "Objetivo estrategico": objective,
+            "Objetivo/KPI": objective,
+        }
+        for perspective in perspectives:
+            local_score = float(score_matrix.loc[objective, perspective])
+            perspective_weight = float(perspective_weight_map.get(perspective, 0.0))
+            row[perspective] = round(local_score, 6)
+            final_weight += local_score * perspective_weight
+            if local_score > best_local_score:
+                best_local_score = local_score
+                best_perspective = perspective
+        row["Perspectiva dominante"] = best_perspective
+        row["Peso SAPEVO-BSC"] = round(final_weight, 6)
+        row["Peso objetivo"] = round(final_weight, 6)
+        row["Peso SAPEVO-BSC (%)"] = round(100 * final_weight, 2)
+        row["Peso objetivo (%)"] = round(100 * final_weight, 2)
+        rows.append(row)
+
+    objective_weights = pd.DataFrame(rows).sort_values(
+        ["Peso SAPEVO-BSC", "Objetivo estrategico"],
+        ascending=[False, True],
+    )
+    objective_weights["Ranking objetivo"] = range(1, len(objective_weights) + 1)
+    return ProjectWeightResult(
+        project_weights=objective_weights.reset_index(drop=True),
+        evaluator_vectors=evaluator_vectors_by_perspective,
+    )
+
+
 def consolidate_objective_sapevo_weights(
     objectives: pd.DataFrame,
     perspective_weights: pd.DataFrame,
