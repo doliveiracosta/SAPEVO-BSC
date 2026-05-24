@@ -71,6 +71,19 @@ def render_cover() -> None:
         .institutional-logos .logo-upe { height: 52px; }
         .institutional-logos .logo-poli { height: 54px; }
         .institutional-logos .logo-ppgec { height: 48px; }
+        .institutional-logo-fallback {
+            min-width: 86px;
+            height: 42px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            color: #374151;
+            font-weight: 700;
+            font-size: 0.82rem;
+            background: #f9fafb;
+        }
         .usage-guide {
             margin: 0.2rem 0 1.1rem;
             color: #4b5563;
@@ -93,22 +106,25 @@ def render_cover() -> None:
     logo_upe = Path("assets/logo_upe.jfif")
     logo_poli = Path("assets/logo_upe_poli.png")
     logo_ppgec = Path("assets/logo_ppgec.png")
-    if logo_upe.exists() and logo_poli.exists() and logo_ppgec.exists():
-        st.markdown(
-            f"""
-            <div class="institutional-logos">
-                <img class="logo-upe" src="{asset_data_uri(logo_upe)}" alt="UPE">
-                <img class="logo-poli" src="{asset_data_uri(logo_poli)}" alt="POLI">
-                <img class="logo-ppgec" src="{asset_data_uri(logo_ppgec)}" alt="PPGEC">
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    logo_items = []
+    if logo_upe.exists():
+        logo_items.append(f'<img class="logo-upe" src="{asset_data_uri(logo_upe)}" alt="UPE">')
+    else:
+        logo_items.append('<span class="institutional-logo-fallback">UPE</span>')
+    if logo_poli.exists():
+        logo_items.append(f'<img class="logo-poli" src="{asset_data_uri(logo_poli)}" alt="POLI">')
+    else:
+        logo_items.append('<span class="institutional-logo-fallback">POLI</span>')
+    if logo_ppgec.exists():
+        logo_items.append(f'<img class="logo-ppgec" src="{asset_data_uri(logo_ppgec)}" alt="PPGEC">')
+    else:
+        logo_items.append('<span class="institutional-logo-fallback">PPGEC</span>')
+    st.markdown(f'<div class="institutional-logos">{"".join(logo_items)}</div>', unsafe_allow_html=True)
 
     st.title(APP_NAME)
     st.markdown(f"### {APP_SUBTITLE}")
     st.markdown(f"**{APP_OWNER_LABEL}**")
-    st.caption("Metodo multicriterio para priorizacao de projetos estrategicos alinhados ao Balanced Scorecard.")
+    st.caption("Metodo multicriterio para priorizacao de projetos estrategicos com BSC, SAPEVO-M e matriz Impacto/Probabilidade.")
     st.markdown(
         """
         <details class="usage-guide">
