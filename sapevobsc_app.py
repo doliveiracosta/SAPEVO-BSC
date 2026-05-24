@@ -68,10 +68,10 @@ def init_state() -> None:
         "evaluators": ["Avaliador 1", "Avaliador 2", "Avaliador 3"],
         "objectives": pd.DataFrame(
             [
-                {"Objetivo estrategico": "Aumentar rentabilidade", "Perspectiva": "Financeira", "Peso relativo": 1.0, "Descricao": "Elevar retorno e sustentabilidade financeira"},
-                {"Objetivo estrategico": "Melhorar satisfacao do cliente", "Perspectiva": "Clientes", "Peso relativo": 1.0, "Descricao": "Ampliar qualidade percebida e fidelizacao"},
-                {"Objetivo estrategico": "Otimizar processos internos", "Perspectiva": "Processos Internos", "Peso relativo": 1.0, "Descricao": "Reduzir gargalos e aumentar eficiencia operacional"},
-                {"Objetivo estrategico": "Desenvolver capacidades organizacionais", "Perspectiva": "Aprendizado e Crescimento", "Peso relativo": 1.0, "Descricao": "Fortalecer pessoas, tecnologia e aprendizagem"},
+                {"Objetivo estrategico": "Aumentar rentabilidade", "Perspectiva": "Financeira", "Descricao": "Elevar retorno e sustentabilidade financeira"},
+                {"Objetivo estrategico": "Melhorar satisfacao do cliente", "Perspectiva": "Clientes", "Descricao": "Ampliar qualidade percebida e fidelizacao"},
+                {"Objetivo estrategico": "Otimizar processos internos", "Perspectiva": "Processos Internos", "Descricao": "Reduzir gargalos e aumentar eficiencia operacional"},
+                {"Objetivo estrategico": "Desenvolver capacidades organizacionais", "Perspectiva": "Aprendizado e Crescimento", "Descricao": "Fortalecer pessoas, tecnologia e aprendizagem"},
             ]
         ),
         "projects": pd.DataFrame(
@@ -223,12 +223,10 @@ def project_inputs() -> None:
 
 def objective_inputs() -> pd.DataFrame:
     st.subheader("Objetivos estrategicos")
-    st.caption("Defina quantos objetivos serao analisados, atribua pesos em escala aberta e descreva cada objetivo.")
+    st.caption("Defina quantos objetivos serao analisados e descreva cada objetivo.")
     objectives = st.session_state.objectives.copy()
     if "Perspectiva" not in objectives.columns:
         objectives["Perspectiva"] = st.session_state.perspectives[0] if st.session_state.perspectives else ""
-    if "Peso relativo" not in objectives.columns:
-        objectives["Peso relativo"] = 1.0
     if "Descricao" not in objectives.columns:
         objectives["Descricao"] = ""
     objective_count = st.number_input(
@@ -243,24 +241,16 @@ def objective_inputs() -> pd.DataFrame:
         for index in range(len(objectives), desired_count):
             objectives.loc[index, "Objetivo estrategico"] = f"Objetivo {index + 1}"
             objectives.loc[index, "Perspectiva"] = st.session_state.perspectives[index % len(st.session_state.perspectives)]
-            objectives.loc[index, "Peso relativo"] = 1.0
             objectives.loc[index, "Descricao"] = ""
     elif len(objectives) > desired_count:
         objectives = objectives.iloc[:desired_count].copy()
 
     edited = st.data_editor(
-        objectives[["Objetivo estrategico", "Peso relativo", "Descricao"]],
+        objectives[["Objetivo estrategico", "Descricao"]],
         use_container_width=True,
         hide_index=True,
         column_config={
             "Objetivo estrategico": st.column_config.TextColumn("Objetivo estrategico", required=True),
-            "Peso relativo": st.column_config.NumberColumn(
-                "Peso relativo (escala aberta)",
-                min_value=0.0,
-                step=0.1,
-                format="%.2f",
-                help="Use qualquer escala de importancia. Os pesos serao normalizados dentro da perspectiva BSC.",
-            ),
             "Descricao": st.column_config.TextColumn("Descricao"),
         },
     )
@@ -282,9 +272,9 @@ def objective_inputs() -> pd.DataFrame:
                 "Objetivo estrategico": st.column_config.TextColumn("Objetivo estrategico"),
                 "Perspectiva": st.column_config.SelectboxColumn("Perspectiva BSC", options=st.session_state.perspectives, required=True),
             },
-        )
+    )
     edited["Perspectiva"] = perspective_data["Perspectiva"].reset_index(drop=True)
-    edited = edited[["Objetivo estrategico", "Perspectiva", "Peso relativo", "Descricao"]]
+    edited = edited[["Objetivo estrategico", "Perspectiva", "Descricao"]]
     st.session_state.objectives = edited
     return edited
 
@@ -350,7 +340,7 @@ def sync_project_columns(projects: pd.DataFrame) -> pd.DataFrame:
 
 def project_table_inputs() -> pd.DataFrame:
     st.subheader("Acoes e projetos estrategicos")
-    st.caption("Escolha a quantidade de acoes/projetos, associe uma perspectiva BSC principal e preencha impacto/probabilidade.")
+    st.caption("Escolha a quantidade de acoes/projetos e preencha impacto/probabilidade.")
     st.session_state.projects = sync_project_columns(st.session_state.projects)
     if "Natureza" not in st.session_state.projects.columns:
         st.session_state.projects["Natureza"] = "Oportunidade"
@@ -375,19 +365,38 @@ def project_table_inputs() -> pd.DataFrame:
     projects = sync_project_columns(projects)
     edited = st.data_editor(
         projects[
-            ["Acao/Projeto", "Perspectiva", "Natureza", "Impacto", "Probabilidade"]
+            ["Acao/Projeto", "Natureza", "Impacto", "Probabilidade"]
         ],
         use_container_width=True,
         hide_index=True,
         column_config={
             "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto", required=True),
-            "Perspectiva": st.column_config.SelectboxColumn("Perspectiva BSC principal", options=st.session_state.perspectives),
             "Natureza": st.column_config.SelectboxColumn("Natureza", options=PROJECT_NATURES),
             "Impacto": st.column_config.SelectboxColumn("Impacto", options=list(IMPACT_PROBABILITY_SCALE)),
             "Probabilidade": st.column_config.SelectboxColumn("Probabilidade", options=list(IMPACT_PROBABILITY_SCALE)),
         },
     )
-    edited = sync_project_columns(edited.dropna(how="all").fillna(""))
+    edited = edited.dropna(how="all").fillna("").reset_index(drop=True)
+    perspective_data = pd.DataFrame(
+        {
+            "Acao/Projeto": edited["Acao/Projeto"],
+            "Perspectiva": projects["Perspectiva"].iloc[: len(edited)].reset_index(drop=True),
+        }
+    )
+    with st.expander("Atribuir perspectiva BSC principal às ações/projetos", expanded=False):
+        st.caption("Campo metodologico recolhido: associe cada acao/projeto a uma perspectiva BSC principal.")
+        perspective_data = st.data_editor(
+            perspective_data,
+            use_container_width=True,
+            hide_index=True,
+            disabled=["Acao/Projeto"],
+            column_config={
+                "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto"),
+                "Perspectiva": st.column_config.SelectboxColumn("Perspectiva BSC principal", options=st.session_state.perspectives, required=True),
+            },
+        )
+    edited["Perspectiva"] = perspective_data["Perspectiva"].reset_index(drop=True)
+    edited = sync_project_columns(edited)
     st.session_state.projects = edited
     return edited
 
@@ -704,7 +713,7 @@ def main() -> None:
 
     if not objective_weights.empty:
         st.subheader("Pesos globais dos objetivos estrategicos")
-        st.caption("Peso objetivo = peso da perspectiva BSC x peso relativo normalizado do objetivo dentro da perspectiva.")
+        st.caption("Peso objetivo = peso da perspectiva BSC distribuido igualmente entre os objetivos associados a essa perspectiva.")
         st.dataframe(objective_weights, use_container_width=True, hide_index=True)
 
     if not project_weights.empty:
