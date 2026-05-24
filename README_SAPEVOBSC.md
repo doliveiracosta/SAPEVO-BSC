@@ -10,21 +10,19 @@ Artigo de referencia: https://www.researchgate.net/publication/390109234_SAPEVO-
 
 1. Registrar o projeto, horizonte e visao do negocio.
 2. Identificar as acoes/projetos que precisam ser executados.
-3. Avaliar preliminarmente cada acao/projeto quanto a importancia e alinhamento com a visao do negocio.
-4. Usar as quatro perspectivas BSC como criterios do metodo.
-5. Definir os objetivos/indicadores estrategicos e associar cada um a uma perspectiva BSC.
-6. Vincular cada acao/projeto ao objetivo/indicador estrategico correspondente.
-7. Cadastrar decisores/avaliadores.
-8. Comparar perspectivas por escala ordinal SAPEVO-M.
-9. Comparar objetivos/KPIs dentro de cada perspectiva por escala ordinal SAPEVO-M.
-10. Consolidar pesos das perspectivas e pesos SAPEVO-BSC dos objetivos/KPIs.
-11. Avaliar impacto e probabilidade das acoes/projetos.
-12. Calcular ranking de prioridade e exportar relatorio PDF.
+3. Definir os objetivos/indicadores estrategicos que serao tratados como alternativas.
+4. Cadastrar decisores/avaliadores.
+5. Comparar perspectivas BSC por escala ordinal SAPEVO-M.
+6. Para cada perspectiva BSC, comparar os objetivos/indicadores por escala ordinal SAPEVO-M.
+7. Vincular cada acao/projeto ao objetivo/indicador estrategico correspondente.
+8. Avaliar impacto e probabilidade das acoes/projetos.
+9. Gerar a matriz global objetivo x perspectiva, calcular o peso final de cada objetivo, calcular o ranking de prioridade e exportar relatorio PDF.
 
 ## Formula operacional
 
 ```text
-Peso do objetivo/KPI = Peso da perspectiva BSC x Peso local SAPEVO-M do objetivo/KPI na perspectiva
+Matriz global = pontuacao SAPEVO-M de cada objetivo/KPI em cada perspectiva BSC
+Peso do objetivo/KPI = soma(pontuacao do objetivo na perspectiva x peso da perspectiva)
 Peso SAPEVO-BSC do projeto = Peso SAPEVO-BSC do objetivo/KPI vinculado ao projeto
 Indice I/P = valor da classe obtida na matriz Impacto/Probabilidade
 Indice de prioridade = Peso SAPEVO-BSC do projeto x Indice I/P

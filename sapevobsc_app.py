@@ -27,7 +27,7 @@ from sapevobsc.core import (
     THREAT_MATRIX,
     build_pairwise_matrix,
     calculate_project_weights_from_objectives,
-    consolidate_objective_sapevo_weights,
+    consolidate_objective_scores_by_perspective,
     consolidate_sapevo_weights,
     project_label,
     rank_projects,
@@ -68,18 +68,18 @@ def init_state() -> None:
         "evaluators": ["Avaliador 1", "Avaliador 2", "Avaliador 3"],
         "objectives": pd.DataFrame(
             [
-                {"Objetivo estrategico": "Aumentar rentabilidade", "Perspectiva": "Financeira", "Descricao": "Elevar retorno e sustentabilidade financeira"},
-                {"Objetivo estrategico": "Melhorar satisfacao do cliente", "Perspectiva": "Clientes", "Descricao": "Ampliar qualidade percebida e fidelizacao"},
-                {"Objetivo estrategico": "Otimizar processos internos", "Perspectiva": "Processos Internos", "Descricao": "Reduzir gargalos e aumentar eficiencia operacional"},
-                {"Objetivo estrategico": "Desenvolver capacidades organizacionais", "Perspectiva": "Aprendizado e Crescimento", "Descricao": "Fortalecer pessoas, tecnologia e aprendizagem"},
+                {"Objetivo estrategico": "KPI 1"},
+                {"Objetivo estrategico": "KPI 2"},
+                {"Objetivo estrategico": "KPI 3"},
+                {"Objetivo estrategico": "KPI 4"},
             ]
         ),
         "projects": pd.DataFrame(
             [
-                {"Acao/Projeto": "P1", "Importancia para a visao": "Alta", "Alinhamento estrategico": "Alto", "Objetivo estrategico": "Aumentar rentabilidade", "Natureza": "Oportunidade", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
-                {"Acao/Projeto": "P2", "Importancia para a visao": "Media", "Alinhamento estrategico": "Alto", "Objetivo estrategico": "Melhorar satisfacao do cliente", "Natureza": "Ameaca", "Impacto": "Alto", "Probabilidade": "Moderado"},
-                {"Acao/Projeto": "P3", "Importancia para a visao": "Alta", "Alinhamento estrategico": "Moderado", "Objetivo estrategico": "Otimizar processos internos", "Natureza": "Oportunidade", "Impacto": "Moderado", "Probabilidade": "Alto"},
-                {"Acao/Projeto": "P4", "Importancia para a visao": "Media", "Alinhamento estrategico": "Moderado", "Objetivo estrategico": "Desenvolver capacidades organizacionais", "Natureza": "Ameaca", "Impacto": "Baixo", "Probabilidade": "Muito alto"},
+                {"Acao/Projeto": "P1", "Objetivo estrategico": "KPI 1", "Natureza": "Oportunidade", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
+                {"Acao/Projeto": "P2", "Objetivo estrategico": "KPI 2", "Natureza": "Ameaca", "Impacto": "Alto", "Probabilidade": "Moderado"},
+                {"Acao/Projeto": "P3", "Objetivo estrategico": "KPI 3", "Natureza": "Oportunidade", "Impacto": "Moderado", "Probabilidade": "Alto"},
+                {"Acao/Projeto": "P4", "Objetivo estrategico": "KPI 4", "Natureza": "Ameaca", "Impacto": "Baixo", "Probabilidade": "Muito alto"},
             ]
         ),
         "weights": pd.DataFrame(),
@@ -194,13 +194,12 @@ def render_cover() -> None:
             <ol>
                 <li>Registre o contexto, a visao do negocio e o horizonte estrategico.</li>
                 <li>Identifique as acoes/projetos que precisam ser executados.</li>
-                <li>Avalie preliminarmente a importancia e o alinhamento de cada acao/projeto com a visao do negocio.</li>
-                <li>Cadastre os objetivos/indicadores estrategicos e associe cada um a uma perspectiva BSC.</li>
-                <li>Vincule cada acao/projeto ao objetivo/indicador estrategico correspondente.</li>
+                <li>Cadastre os objetivos/indicadores estrategicos que serao tratados como alternativas.</li>
                 <li>Cadastre os decisores/avaliadores que participarao da comparacao SAPEVO-M.</li>
                 <li>Compare as perspectivas par-a-par usando a escala ordinal de -3 a +3.</li>
-                <li>Compare os objetivos/KPIs dentro de cada perspectiva BSC.</li>
-                <li>Avalie impacto e probabilidade de cada acao/projeto e consolide o ranking.</li>
+                <li>Para cada perspectiva BSC, compare os objetivos/indicadores entre si.</li>
+                <li>Gere a matriz global objetivo x perspectiva e o ranking prioritario dos objetivos.</li>
+                <li>Vincule cada acao/projeto ao objetivo/indicador, avalie impacto e probabilidade e consolide o ranking final.</li>
             </ol>
         </details>
         """,
@@ -223,13 +222,9 @@ def project_inputs() -> None:
 
 
 def objective_inputs() -> pd.DataFrame:
-    st.subheader("4. Objetivos/indicadores estrategicos e perspectivas BSC")
-    st.caption("Defina quantos objetivos serao analisados, descreva cada objetivo e selecione a perspectiva BSC correspondente.")
+    st.subheader("3. Objetivos/indicadores estrategicos")
+    st.caption("Cadastre os objetivos/indicadores que serao tratados como alternativas na matriz decisoria.")
     objectives = st.session_state.objectives.copy()
-    if "Perspectiva" not in objectives.columns:
-        objectives["Perspectiva"] = st.session_state.perspectives[0] if st.session_state.perspectives else ""
-    if "Descricao" not in objectives.columns:
-        objectives["Descricao"] = ""
     objective_count = st.number_input(
         "Quantidade de objetivos estrategicos",
         min_value=1,
@@ -241,49 +236,26 @@ def objective_inputs() -> pd.DataFrame:
     if len(objectives) < desired_count:
         for index in range(len(objectives), desired_count):
             objectives.loc[index, "Objetivo estrategico"] = f"Objetivo {index + 1}"
-            objectives.loc[index, "Perspectiva"] = st.session_state.perspectives[index % len(st.session_state.perspectives)]
-            objectives.loc[index, "Descricao"] = ""
     elif len(objectives) > desired_count:
         objectives = objectives.iloc[:desired_count].copy()
 
-    header = st.columns([2.4, 1.7, 2.7])
+    header = st.columns([1])
     header[0].markdown("**Objetivo estrategico**")
-    header[1].markdown("**Perspectiva BSC**")
-    header[2].markdown("**Descricao**")
 
     rows = []
     for index, row in objectives.iterrows():
         current_objective = str(row.get("Objetivo estrategico", "") or f"Objetivo {index + 1}")
-        current_perspective = str(row.get("Perspectiva", st.session_state.perspectives[0]))
-        current_description = str(row.get("Descricao", ""))
-        if current_perspective not in st.session_state.perspectives:
-            current_perspective = st.session_state.perspectives[0]
 
-        col1, col2, col3 = st.columns([2.4, 1.7, 2.7])
+        col1 = st.columns([1])[0]
         objective = col1.text_input(
             f"Objetivo estrategico {index + 1}",
             value=current_objective,
             label_visibility="collapsed",
             key=f"objective_name_{index}",
         )
-        perspective = col2.selectbox(
-            f"Perspectiva BSC {index + 1}",
-            options=st.session_state.perspectives,
-            index=st.session_state.perspectives.index(current_perspective),
-            label_visibility="collapsed",
-            key=f"objective_perspective_{index}",
-        )
-        description = col3.text_input(
-            f"Descricao {index + 1}",
-            value=current_description,
-            label_visibility="collapsed",
-            key=f"objective_description_{index}",
-        )
         rows.append(
             {
                 "Objetivo estrategico": objective,
-                "Perspectiva": perspective,
-                "Descricao": description,
             }
         )
 
@@ -297,7 +269,7 @@ def perspective_inputs() -> None:
 
 
 def evaluator_inputs() -> None:
-    st.subheader("6. Decisores/avaliadores")
+    st.subheader("4. Decisores/avaliadores")
     count = st.number_input("Quantidade de avaliadores", min_value=1, max_value=10, value=len(st.session_state.evaluators), step=1)
     names = []
     cols = st.columns(min(3, int(count)))
@@ -309,7 +281,7 @@ def evaluator_inputs() -> None:
 
 
 def comparison_inputs() -> list[pd.DataFrame]:
-    st.subheader("7. Comparacao SAPEVO-M das perspectivas BSC")
+    st.subheader("5. Comparacao SAPEVO-M das perspectivas BSC")
     st.caption("Primeiro ciclo SAPEVO-M: define o peso estrategico das perspectivas BSC.")
     perspectives = st.session_state.perspectives
     if len(perspectives) < 2:
@@ -354,11 +326,7 @@ def sync_project_columns(projects: pd.DataFrame) -> pd.DataFrame:
             first_objective = str(objectives.iloc[0].get("Objetivo estrategico", ""))
         projects["Objetivo estrategico"] = first_objective
     if "Perspectiva" not in projects.columns:
-        projects["Perspectiva"] = st.session_state.perspectives[0] if st.session_state.perspectives else ""
-    if "Importancia para a visao" not in projects.columns:
-        projects["Importancia para a visao"] = "Media"
-    if "Alinhamento estrategico" not in projects.columns:
-        projects["Alinhamento estrategico"] = "Moderado"
+        projects["Perspectiva"] = ""
     projects["Projeto"] = projects.get("Acao/Projeto", "")
     projects["Objetivo/KPI"] = projects.get("Objetivo estrategico", "")
     return projects
@@ -366,7 +334,7 @@ def sync_project_columns(projects: pd.DataFrame) -> pd.DataFrame:
 
 def project_table_inputs() -> pd.DataFrame:
     st.subheader("2. Identificacao das acoes/projetos estrategicos")
-    st.caption("Informe as acoes/projetos que precisam ser executados.")
+    st.caption("Informe somente as acoes/projetos que precisam ser executados. O objetivo vinculado sera definido apos o calculo dos pesos dos objetivos.")
     st.session_state.projects = sync_project_columns(st.session_state.projects)
     if "Natureza" not in st.session_state.projects.columns:
         st.session_state.projects["Natureza"] = "Oportunidade"
@@ -382,27 +350,21 @@ def project_table_inputs() -> pd.DataFrame:
     if len(projects) < desired_count:
         for index in range(len(projects), desired_count):
             projects.loc[index, "Acao/Projeto"] = f"P{index + 1}"
-            projects.loc[index, "Importancia para a visao"] = "Media"
-            projects.loc[index, "Alinhamento estrategico"] = "Moderado"
-            projects.loc[index, "Perspectiva"] = st.session_state.perspectives[0] if st.session_state.perspectives else ""
+            projects.loc[index, "Perspectiva"] = ""
             projects.loc[index, "Natureza"] = "Oportunidade"
             projects.loc[index, "Impacto"] = "Moderado"
             projects.loc[index, "Probabilidade"] = "Moderado"
     elif len(projects) > desired_count:
         projects = projects.iloc[:desired_count].copy()
     projects = sync_project_columns(projects)
-    st.subheader("3. Avaliacao preliminar de importancia e alinhamento")
-    st.caption("Registre a leitura inicial de cada acao/projeto em relacao a importancia e ao alinhamento com a visao do negocio.")
     edited = st.data_editor(
         projects[
-            ["Acao/Projeto", "Importancia para a visao", "Alinhamento estrategico", "Natureza", "Impacto", "Probabilidade"]
+            ["Acao/Projeto", "Natureza", "Impacto", "Probabilidade"]
         ],
         use_container_width=True,
         hide_index=True,
         column_config={
             "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto", required=True),
-            "Importancia para a visao": st.column_config.SelectboxColumn("Importancia para a visao", options=["Baixa", "Media", "Alta"], required=True),
-            "Alinhamento estrategico": st.column_config.SelectboxColumn("Alinhamento estrategico", options=["Baixo", "Moderado", "Alto"], required=True),
             "Natureza": st.column_config.SelectboxColumn("Natureza", options=PROJECT_NATURES),
             "Impacto": st.column_config.SelectboxColumn("Impacto", options=list(IMPACT_PROBABILITY_SCALE)),
             "Probabilidade": st.column_config.SelectboxColumn("Probabilidade", options=list(IMPACT_PROBABILITY_SCALE)),
@@ -418,7 +380,7 @@ def project_table_inputs() -> pd.DataFrame:
 
 
 def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFrame) -> pd.DataFrame:
-    st.subheader("5. Vinculo entre acoes/projetos e objetivos/indicadores")
+    st.subheader("7. Vinculo entre acoes/projetos e objetivos/indicadores")
     st.caption("Associe cada acao/projeto ao objetivo/indicador estrategico considerado na matriz decisoria.")
     if projects.empty or objectives.empty:
         st.warning("Cadastre acoes/projetos e objetivos/indicadores antes de realizar o vinculo.")
@@ -452,10 +414,17 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
             ),
         },
     )
-    perspective_map = dict(zip(objectives["Objetivo estrategico"], objectives["Perspectiva"]))
     linked["Objetivo estrategico"] = link_table["Objetivo estrategico"].reset_index(drop=True)
     linked["Objetivo/KPI"] = linked["Objetivo estrategico"]
-    linked["Perspectiva"] = linked["Objetivo estrategico"].map(perspective_map).fillna(st.session_state.perspectives[0])
+    objective_weight_map = {}
+    objective_weights = st.session_state.get("objective_weights", pd.DataFrame())
+    if (
+        isinstance(objective_weights, pd.DataFrame)
+        and not objective_weights.empty
+        and "Perspectiva dominante" in objective_weights.columns
+    ):
+        objective_weight_map = dict(zip(objective_weights["Objetivo estrategico"], objective_weights["Perspectiva dominante"]))
+    linked["Perspectiva"] = linked["Objetivo estrategico"].map(objective_weight_map).fillna("")
     st.session_state.projects = linked
     return linked
 
@@ -621,32 +590,27 @@ def project_comparison_inputs(projects: pd.DataFrame) -> dict[str, list[pd.DataF
 
 
 def objective_comparison_inputs(objectives: pd.DataFrame) -> dict[str, list[pd.DataFrame]]:
-    st.subheader("8. Comparacao SAPEVO-M dos objetivos/KPIs")
-    st.caption("Segundo ciclo SAPEVO-M: compara os objetivos/KPIs dentro de cada perspectiva BSC, conforme a sequencia do metodo.")
+    st.subheader("6. Comparacao SAPEVO-M dos objetivos/indicadores por perspectiva")
+    st.caption("Para cada perspectiva BSC, cada decisor compara os objetivos/indicadores entre si.")
     if objectives.empty:
         st.warning("Cadastre objetivos estrategicos antes de comparar objetivos/KPIs.")
         return {}
 
-    labels_by_perspective = {}
-    for perspective, group in objectives.groupby("Perspectiva", dropna=False):
-        labels = [
-            str(row.get("Objetivo estrategico", "")).strip() or f"Objetivo {index + 1}"
-            for index, row in group.reset_index(drop=True).iterrows()
-        ]
-        if labels:
-            labels_by_perspective[str(perspective)] = labels
+    items = [
+        str(row.get("Objetivo estrategico", "")).strip() or f"Objetivo {index + 1}"
+        for index, row in objectives.reset_index(drop=True).iterrows()
+    ]
 
     matrices_by_perspective: dict[str, list[pd.DataFrame]] = {}
     labels = list(SAPEVO_SCALE)
     reverse_scale = {value: label for label, value in SAPEVO_SCALE.items()}
 
     for perspective in st.session_state.perspectives:
-        items = labels_by_perspective.get(perspective, [])
         if not items:
             continue
-        with st.expander(f"{perspective}: {len(items)} objetivo(s)/KPI(s)", expanded=False):
+        with st.expander(f"{perspective}: comparar {len(items)} objetivo(s)/indicador(es)", expanded=False):
             if len(items) == 1:
-                st.info("Ha apenas um objetivo/KPI nesta perspectiva; o peso local sera 100%.")
+                st.info("Ha apenas um objetivo/indicador; a pontuacao local sera 100%.")
                 matrices_by_perspective[perspective] = []
                 continue
 
@@ -671,7 +635,7 @@ def objective_comparison_inputs(objectives: pd.DataFrame) -> dict[str, list[pd.D
 
 
 def render_impact_probability_matrix() -> None:
-    st.subheader("9. Matriz Impacto/Probabilidade")
+    st.subheader("8. Matriz Impacto/Probabilidade")
     st.caption(
         "Classificacao operacional usada no indice I/P. Para ameacas, maior impacto/probabilidade aumenta criticidade; "
         "para oportunidades, a leitura e invertida conforme a matriz."
@@ -794,16 +758,16 @@ def main() -> None:
     perspective_inputs()
     projects = project_table_inputs()
     objectives = objective_inputs()
-    projects = project_objective_link_inputs(projects, objectives)
     evaluator_inputs()
     perspective_matrices = comparison_inputs()
     objective_matrices = objective_comparison_inputs(objectives)
+    projects = project_objective_link_inputs(projects, objectives)
     render_impact_probability_matrix()
 
-    st.subheader("10. Consolidacao e ranking")
+    st.subheader("9. Consolidacao, matriz global e ranking")
     if st.button("Consolidar SAPEVO-BSC", type="primary"):
         weight_result = consolidate_sapevo_weights(perspective_matrices)
-        objective_result = consolidate_objective_sapevo_weights(objectives, weight_result.weights, objective_matrices)
+        objective_result = consolidate_objective_scores_by_perspective(objectives, weight_result.weights, objective_matrices)
         objective_weights = objective_result.project_weights
         project_weights = calculate_project_weights_from_objectives(projects, objective_weights)
         ranking = rank_projects(projects, weight_result.weights, project_weights)
@@ -827,8 +791,8 @@ def main() -> None:
             st.markdown(radar_svg(weights), unsafe_allow_html=True)
 
     if not objective_weights.empty:
-        st.subheader("Pesos SAPEVO-BSC dos objetivos/KPIs")
-        st.caption("Peso do objetivo/KPI = peso da perspectiva BSC x peso local SAPEVO-M dentro da perspectiva.")
+        st.subheader("Matriz global objetivo x perspectiva e ranking dos objetivos")
+        st.caption("Peso final do objetivo/KPI = soma da pontuacao do objetivo em cada perspectiva multiplicada pelo peso da perspectiva.")
         st.dataframe(objective_weights, use_container_width=True, hide_index=True)
 
     if not project_weights.empty:

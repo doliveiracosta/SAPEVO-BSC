@@ -6,6 +6,7 @@ from sapevobsc.core import (
     build_pairwise_matrix,
     calculate_project_weights_from_objectives,
     compute_objective_weights,
+    consolidate_objective_scores_by_perspective,
     consolidate_objective_sapevo_weights,
     consolidate_fuzzy_project_weights,
     consolidate_project_weights,
@@ -127,6 +128,36 @@ class SAPEVOBSCTests(unittest.TestCase):
 
         self.assertEqual(ranking.iloc[0]["Projeto"], "P1")
         self.assertGreater(float(ranking.iloc[0]["Peso SAPEVO-BSC"]), float(ranking.iloc[1]["Peso SAPEVO-BSC"]))
+
+    def test_objective_scores_matrix_multiplies_perspective_weights(self):
+        perspective_weights = pd.DataFrame(
+            {
+                "Perspectiva": ["Financeira", "Clientes"],
+                "Peso": [0.75, 0.25],
+                "Peso (%)": [75, 25],
+            }
+        )
+        objectives = pd.DataFrame(
+            [
+                {"Objetivo estrategico": "KPI 1"},
+                {"Objetivo estrategico": "KPI 2"},
+            ]
+        )
+        finance_matrix = build_pairwise_matrix(["KPI 1", "KPI 2"], {("KPI 1", "KPI 2"): 3})
+        customer_matrix = build_pairwise_matrix(["KPI 1", "KPI 2"], {("KPI 1", "KPI 2"): -3})
+
+        result = consolidate_objective_scores_by_perspective(
+            objectives,
+            perspective_weights,
+            {"Financeira": [finance_matrix], "Clientes": [customer_matrix]},
+        ).project_weights
+
+        kpi1 = result[result["Objetivo estrategico"] == "KPI 1"].iloc[0]
+        kpi2 = result[result["Objetivo estrategico"] == "KPI 2"].iloc[0]
+
+        self.assertGreater(float(kpi1["Financeira"]), float(kpi2["Financeira"]))
+        self.assertGreater(float(kpi2["Clientes"]), float(kpi1["Clientes"]))
+        self.assertGreater(float(kpi1["Peso SAPEVO-BSC"]), float(kpi2["Peso SAPEVO-BSC"]))
 
     def test_impact_probability_inverts_for_opportunities(self):
         threat_class = impact_probability_classification("Ameaca", "Muito alto", "Muito alto")
