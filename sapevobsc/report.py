@@ -17,6 +17,7 @@ def write_pdf_report(
     output: str | BinaryIO,
     *,
     project: dict,
+    projects: pd.DataFrame | None = None,
     objectives: pd.DataFrame | None = None,
     objective_weights: pd.DataFrame | None = None,
     weights: pd.DataFrame,
@@ -70,8 +71,24 @@ def write_pdf_report(
     story.append(table(rows, [4 * cm, 11.7 * cm]))
     story.append(Spacer(1, 10))
 
+    if projects is not None and not projects.empty:
+        story.append(paragraph("2. Acoes/projetos identificados", "Heading1"))
+        project_rows = [["Acao/Projeto", "Importancia", "Alinhamento", "Objetivo/KPI", "Natureza"]]
+        for _, row in projects.iterrows():
+            project_rows.append(
+                [
+                    row.get("Acao/Projeto", row.get("Projeto", "")),
+                    row.get("Importancia para a visao", ""),
+                    row.get("Alinhamento estrategico", ""),
+                    row.get("Objetivo estrategico", row.get("Objetivo/KPI", "")),
+                    row.get("Natureza", ""),
+                ]
+            )
+        story.append(table(project_rows, [2.7 * cm, 2.4 * cm, 2.6 * cm, 5.4 * cm, 2.6 * cm]))
+        story.append(Spacer(1, 10))
+
     if objectives is not None and not objectives.empty:
-        story.append(paragraph("2. Objetivos estrategicos", "Heading1"))
+        story.append(paragraph("3. Objetivos/indicadores estrategicos", "Heading1"))
         objective_rows = [["Objetivo estrategico", "Perspectiva BSC", "Descricao"]]
         for _, row in objectives.iterrows():
             objective_rows.append(
@@ -84,7 +101,7 @@ def write_pdf_report(
         story.append(table(objective_rows, [6.2 * cm, 4.2 * cm, 5.3 * cm]))
         story.append(Spacer(1, 10))
 
-    story.append(paragraph("3. Pesos das perspectivas BSC", "Heading1"))
+    story.append(paragraph("4. Pesos das perspectivas BSC", "Heading1"))
     weight_rows = [["Perspectiva", "Peso", "Peso (%)"]]
     for _, row in weights.iterrows():
         weight_rows.append([row["Perspectiva"], f"{float(row['Peso']):.4f}", f"{float(row['Peso (%)']):.2f}%"])
@@ -92,7 +109,7 @@ def write_pdf_report(
     story.append(Spacer(1, 10))
 
     if objective_weights is not None and not objective_weights.empty:
-        story.append(paragraph("4. Pesos SAPEVO-BSC dos objetivos/KPIs", "Heading1"))
+        story.append(paragraph("5. Pesos SAPEVO-BSC dos objetivos/KPIs", "Heading1"))
         objective_weight_rows = [["Objetivo/KPI", "Perspectiva", "Peso local SAPEVO-M", "Peso SAPEVO-BSC"]]
         for _, row in objective_weights.iterrows():
             objective_weight_rows.append(
@@ -107,7 +124,7 @@ def write_pdf_report(
         story.append(Spacer(1, 10))
 
     if project_weights is not None and not project_weights.empty:
-        story.append(paragraph("5. Pesos SAPEVO-BSC das acoes/projetos", "Heading1"))
+        story.append(paragraph("6. Pesos SAPEVO-BSC das acoes/projetos", "Heading1"))
         project_weight_rows = [["Acao/Projeto", "Objetivo/KPI vinculado", "Perspectiva", "Peso final"]]
         for _, row in project_weights.iterrows():
             project_weight_rows.append(
@@ -121,7 +138,7 @@ def write_pdf_report(
         story.append(table(project_weight_rows, [3.2 * cm, 5.8 * cm, 4.0 * cm, 2.7 * cm]))
         story.append(Spacer(1, 10))
 
-    story.append(paragraph("6. Ranking de projetos", "Heading1"))
+    story.append(paragraph("7. Ranking de projetos", "Heading1"))
     rank_rows = [["Rank", "Acao/Projeto", "Objetivo", "Natureza", "Classe I/P", "Indice I/P", "Indice"]]
     for _, row in ranking.iterrows():
         rank_rows.append(
@@ -138,7 +155,7 @@ def write_pdf_report(
     story.append(table(rank_rows, [1.0 * cm, 2.8 * cm, 3.8 * cm, 1.9 * cm, 1.8 * cm, 1.7 * cm, 2.1 * cm]))
     story.append(Spacer(1, 10))
 
-    story.append(paragraph("7. Conclusao consultiva", "Heading1"))
+    story.append(paragraph("8. Conclusao consultiva", "Heading1"))
     story.append(paragraph(strategic_conclusion(ranking, weights)))
     doc.build(story)
 
