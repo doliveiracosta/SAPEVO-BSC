@@ -47,3 +47,9 @@ RISK_CLASS_COLORS = {
     "Media": "#ffd966",
     "Alta": "#ff7c80",
 }
+
+IMPACT_PROBABILITY_CLASS_VALUES = {
+    "Baixa": 0.03,
+    "Media": 0.19,
+    "Alta": 0.38,
+}

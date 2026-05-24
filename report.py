@@ -92,15 +92,15 @@ def write_pdf_report(
     story.append(Spacer(1, 10))
 
     if objective_weights is not None and not objective_weights.empty:
-        story.append(paragraph("4. Pesos globais dos objetivos estrategicos", "Heading1"))
-        objective_weight_rows = [["Objetivo", "Perspectiva", "Peso local", "Peso global"]]
+        story.append(paragraph("4. Pesos SAPEVO-BSC dos objetivos/KPIs", "Heading1"))
+        objective_weight_rows = [["Objetivo/KPI", "Perspectiva", "Peso local SAPEVO-M", "Peso SAPEVO-BSC"]]
         for _, row in objective_weights.iterrows():
             objective_weight_rows.append(
                 [
                     row.get("Objetivo estrategico", ""),
                     row.get("Perspectiva", ""),
-                    f"{float(row.get('Peso local objetivo', 0.0)):.4f}",
-                    f"{float(row.get('Peso objetivo', 0.0)):.4f}",
+                    f"{float(row.get('Peso local SAPEVO-M', row.get('Peso local objetivo', 0.0))):.4f}",
+                    f"{float(row.get('Peso SAPEVO-BSC', row.get('Peso objetivo', 0.0))):.4f}",
                 ]
             )
         story.append(table(objective_weight_rows, [5.8 * cm, 4.2 * cm, 2.8 * cm, 2.9 * cm]))
@@ -108,7 +108,7 @@ def write_pdf_report(
 
     if project_weights is not None and not project_weights.empty:
         story.append(paragraph("5. Pesos SAPEVO-BSC das acoes/projetos", "Heading1"))
-        project_weight_rows = [["Acao/Projeto", "Objetivo dominante", "Perspectiva", "Peso final"]]
+        project_weight_rows = [["Acao/Projeto", "Objetivo/KPI vinculado", "Perspectiva", "Peso final"]]
         for _, row in project_weights.iterrows():
             project_weight_rows.append(
                 [
@@ -122,7 +122,7 @@ def write_pdf_report(
         story.append(Spacer(1, 10))
 
     story.append(paragraph("6. Ranking de projetos", "Heading1"))
-    rank_rows = [["Rank", "Acao/Projeto", "Objetivo", "Natureza", "Classe I/P", "Indice"]]
+    rank_rows = [["Rank", "Acao/Projeto", "Objetivo", "Natureza", "Classe I/P", "Indice I/P", "Indice"]]
     for _, row in ranking.iterrows():
         rank_rows.append(
             [
@@ -131,10 +131,11 @@ def write_pdf_report(
                 row.get("Objetivo/KPI", ""),
                 row.get("Natureza", ""),
                 row.get("Classificacao I/P", ""),
+                f"{float(row.get('Indice I/P', 0.0)):.4f}",
                 f"{float(row['Indice de prioridade']):.6f}",
             ]
         )
-    story.append(table(rank_rows, [1.1 * cm, 3.3 * cm, 4.5 * cm, 2.2 * cm, 2.2 * cm, 2.4 * cm]))
+    story.append(table(rank_rows, [1.0 * cm, 2.8 * cm, 3.8 * cm, 1.9 * cm, 1.8 * cm, 1.7 * cm, 2.1 * cm]))
     story.append(Spacer(1, 10))
 
     story.append(paragraph("7. Conclusao consultiva", "Heading1"))
