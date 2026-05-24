@@ -2,7 +2,14 @@ import unittest
 
 import pandas as pd
 
-from sapevobsc.core import build_pairwise_matrix, consolidate_project_weights, consolidate_sapevo_weights, rank_projects
+from sapevobsc.core import (
+    build_pairwise_matrix,
+    compute_objective_weights,
+    consolidate_fuzzy_project_weights,
+    consolidate_project_weights,
+    consolidate_sapevo_weights,
+    rank_projects,
+)
 
 
 class SAPEVOBSCTests(unittest.TestCase):
@@ -58,6 +65,32 @@ class SAPEVOBSCTests(unittest.TestCase):
 
         self.assertAlmostEqual(float(result.project_weights["Peso SAPEVO-BSC"].sum()), 0.8)
         self.assertEqual(result.project_weights.iloc[0]["Projeto"], "P1")
+
+    def test_fuzzy_objective_partition_weights_project(self):
+        perspective_weights = pd.DataFrame(
+            {
+                "Perspectiva": ["Financeira", "Clientes"],
+                "Peso": [0.7, 0.3],
+                "Peso (%)": [70, 30],
+            }
+        )
+        objectives = pd.DataFrame(
+            [
+                {"Objetivo estrategico": "ObjX", "Perspectiva": "Financeira", "Peso relativo": 1.0},
+                {"Objetivo estrategico": "ObjY", "Perspectiva": "Clientes", "Peso relativo": 1.0},
+            ]
+        )
+        projects = pd.DataFrame(
+            [
+                {"Acao/Projeto": "P1", "Natureza": "Oportunidade", "Impacto": "Muito alto", "Probabilidade": "Muito alto"},
+            ]
+        )
+        alignment = pd.DataFrame([{"Acao/Projeto": "P1", "ObjX": 0.1, "ObjY": 0.9}])
+        objective_weights = compute_objective_weights(objectives, perspective_weights)
+        project_weights = consolidate_fuzzy_project_weights(projects, objective_weights, alignment)
+
+        expected = 0.1 * 0.7 + 0.9 * 0.3
+        self.assertAlmostEqual(float(project_weights.iloc[0]["Peso SAPEVO-BSC"]), expected, places=6)
 
 
 if __name__ == "__main__":
