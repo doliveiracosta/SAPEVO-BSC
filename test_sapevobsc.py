@@ -8,6 +8,8 @@ from sapevobsc.core import (
     consolidate_fuzzy_project_weights,
     consolidate_project_weights,
     consolidate_sapevo_weights,
+    impact_probability_classification,
+    impact_probability_index,
     rank_projects,
 )
 
@@ -91,6 +93,17 @@ class SAPEVOBSCTests(unittest.TestCase):
 
         expected = 0.1 * 0.7 + 0.9 * 0.3
         self.assertAlmostEqual(float(project_weights.iloc[0]["Peso SAPEVO-BSC"]), expected, places=6)
+
+    def test_impact_probability_inverts_for_opportunities(self):
+        threat_class = impact_probability_classification("Ameaca", "Muito alto", "Muito alto")
+        opportunity_class = impact_probability_classification("Oportunidade", "Muito alto", "Muito alto")
+
+        self.assertEqual(threat_class, "Alta")
+        self.assertEqual(opportunity_class, "Baixa")
+        self.assertGreater(
+            impact_probability_index("Ameaca", "Muito alto", "Muito alto"),
+            impact_probability_index("Oportunidade", "Muito alto", "Muito alto"),
+        )
 
 
 if __name__ == "__main__":
