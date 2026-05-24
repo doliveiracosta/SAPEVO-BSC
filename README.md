@@ -10,7 +10,7 @@ Artigo de referencia: https://www.researchgate.net/publication/390109234_SAPEVO-
 
 1. Registrar o projeto, horizonte e visao do negocio.
 2. Usar as quatro perspectivas BSC como estrutura fixa interna do metodo.
-3. Definir a quantidade de objetivos estrategicos e, em campo recolhido, associa-los as perspectivas BSC.
+3. Definir a quantidade de objetivos estrategicos e associar cada objetivo a uma perspectiva BSC na propria tabela.
 4. Definir a quantidade de acoes/projetos estrategicos e, em campo recolhido, associar cada item a uma perspectiva BSC principal.
 5. Distribuir fuzzy o alinhamento de cada acao/projeto entre os objetivos estrategicos, com soma 1,00.
 6. Cadastrar avaliadores.

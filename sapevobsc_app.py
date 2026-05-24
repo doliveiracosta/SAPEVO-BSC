@@ -246,34 +246,21 @@ def objective_inputs() -> pd.DataFrame:
         objectives = objectives.iloc[:desired_count].copy()
 
     edited = st.data_editor(
-        objectives[["Objetivo estrategico", "Descricao"]],
+        objectives[["Objetivo estrategico", "Perspectiva", "Descricao"]],
         use_container_width=True,
         hide_index=True,
         column_config={
             "Objetivo estrategico": st.column_config.TextColumn("Objetivo estrategico", required=True),
+            "Perspectiva": st.column_config.SelectboxColumn(
+                "Perspectiva BSC",
+                options=st.session_state.perspectives,
+                required=True,
+                help="Selecione a perspectiva estrategica como em um filtro de planilha.",
+            ),
             "Descricao": st.column_config.TextColumn("Descricao"),
         },
     )
     edited = edited.dropna(how="all").fillna("").reset_index(drop=True)
-    perspective_data = pd.DataFrame(
-        {
-            "Objetivo estrategico": edited["Objetivo estrategico"],
-            "Perspectiva": objectives["Perspectiva"].iloc[: len(edited)].reset_index(drop=True),
-        }
-    )
-    with st.expander("Atribuir perspectiva BSC aos objetivos", expanded=False):
-        st.caption("Campo metodologico recolhido: associe cada objetivo a uma perspectiva BSC.")
-        perspective_data = st.data_editor(
-            perspective_data,
-            use_container_width=True,
-            hide_index=True,
-            disabled=["Objetivo estrategico"],
-            column_config={
-                "Objetivo estrategico": st.column_config.TextColumn("Objetivo estrategico"),
-                "Perspectiva": st.column_config.SelectboxColumn("Perspectiva BSC", options=st.session_state.perspectives, required=True),
-            },
-    )
-    edited["Perspectiva"] = perspective_data["Perspectiva"].reset_index(drop=True)
     edited = edited[["Objetivo estrategico", "Perspectiva", "Descricao"]]
     st.session_state.objectives = edited
     return edited
