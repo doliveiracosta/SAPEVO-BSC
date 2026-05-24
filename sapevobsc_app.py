@@ -29,6 +29,8 @@ from sapevobsc.core import (
     calculate_project_weights_from_objectives,
     consolidate_objective_scores_by_perspective,
     consolidate_sapevo_weights,
+    impact_probability_classification,
+    impact_probability_index,
     project_label,
     rank_projects,
     strategic_conclusion,
@@ -199,7 +201,8 @@ def render_cover() -> None:
                 <li>Compare as perspectivas par-a-par usando a escala ordinal de -3 a +3.</li>
                 <li>Para cada perspectiva BSC, compare os objetivos/indicadores entre si.</li>
                 <li>Gere a matriz global objetivo x perspectiva e o ranking prioritario dos objetivos.</li>
-                <li>Vincule cada acao/projeto ao objetivo/indicador, avalie impacto e probabilidade e consolide o ranking final.</li>
+                <li>Vincule cada acao/projeto ao objetivo/indicador e avalie impacto/probabilidade com classe I/P calculada automaticamente.</li>
+                <li>Consolide a matriz global, o ranking dos objetivos e o ranking final dos projetos.</li>
             </ol>
         </details>
         """,
@@ -380,8 +383,8 @@ def project_table_inputs() -> pd.DataFrame:
 
 
 def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFrame) -> pd.DataFrame:
-    st.subheader("7. Vinculo entre acoes/projetos e objetivos/indicadores")
-    st.caption("Associe cada acao/projeto ao objetivo/indicador estrategico considerado na matriz decisoria.")
+    st.subheader("7. Vinculo com objetivos e avaliacao Impacto/Probabilidade")
+    st.caption("Associe cada acao/projeto ao objetivo/indicador e avalie natureza, impacto e probabilidade. A classe I/P muda conforme o item seja ameaca ou oportunidade.")
     if projects.empty or objectives.empty:
         st.warning("Cadastre acoes/projetos e objetivos/indicadores antes de realizar o vinculo.")
         return projects
@@ -399,7 +402,7 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
         linked["Objetivo estrategico"].isin(objective_options),
         objective_options[0],
     )
-    link_table = linked[["Acao/Projeto", "Objetivo estrategico"]].copy()
+    link_table = linked[["Acao/Projeto", "Objetivo estrategico", "Natureza", "Impacto", "Probabilidade"]].copy()
     link_table = st.data_editor(
         link_table,
         use_container_width=True,
@@ -412,10 +415,16 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
                 options=objective_options,
                 required=True,
             ),
+            "Natureza": st.column_config.SelectboxColumn("Natureza", options=PROJECT_NATURES, required=True),
+            "Impacto": st.column_config.SelectboxColumn("Impacto", options=list(IMPACT_PROBABILITY_SCALE), required=True),
+            "Probabilidade": st.column_config.SelectboxColumn("Probabilidade", options=list(IMPACT_PROBABILITY_SCALE), required=True),
         },
     )
     linked["Objetivo estrategico"] = link_table["Objetivo estrategico"].reset_index(drop=True)
     linked["Objetivo/KPI"] = linked["Objetivo estrategico"]
+    linked["Natureza"] = link_table["Natureza"].reset_index(drop=True)
+    linked["Impacto"] = link_table["Impacto"].reset_index(drop=True)
+    linked["Probabilidade"] = link_table["Probabilidade"].reset_index(drop=True)
     objective_weight_map = {}
     objective_weights = st.session_state.get("objective_weights", pd.DataFrame())
     if (
@@ -425,8 +434,77 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
     ):
         objective_weight_map = dict(zip(objective_weights["Objetivo estrategico"], objective_weights["Perspectiva dominante"]))
     linked["Perspectiva"] = linked["Objetivo estrategico"].map(objective_weight_map).fillna("")
+    linked["Classe I/P"] = [
+        impact_probability_classification(row["Natureza"], row["Impacto"], row["Probabilidade"])
+        for _, row in linked.iterrows()
+    ]
+    linked["Indice I/P"] = [
+        round(impact_probability_index(row["Natureza"], row["Impacto"], row["Probabilidade"]), 4)
+        for _, row in linked.iterrows()
+    ]
+    render_ip_assessment(linked)
     st.session_state.projects = linked
     return linked
+
+
+def render_ip_assessment(projects: pd.DataFrame) -> None:
+    if projects.empty or "Classe I/P" not in projects.columns:
+        return
+
+    rows = []
+    for _, row in projects.iterrows():
+        classification = str(row.get("Classe I/P", "Baixa"))
+        color = RISK_CLASS_COLORS.get(classification, "#e5e7eb")
+        text_color = "#111827"
+        rows.append(
+            "<tr>"
+            f"<td>{row.get('Acao/Projeto', row.get('Projeto', ''))}</td>"
+            f"<td>{row.get('Objetivo estrategico', row.get('Objetivo/KPI', ''))}</td>"
+            f"<td>{row.get('Natureza', '')}</td>"
+            f"<td>{row.get('Impacto', '')}</td>"
+            f"<td>{row.get('Probabilidade', '')}</td>"
+            f'<td style="background:{color}; color:{text_color}; font-weight:700;">{classification}</td>'
+            f"<td>{float(row.get('Indice I/P', 0.0)):.4f}</td>"
+            "</tr>"
+        )
+
+    st.markdown(
+        f"""
+        <style>
+        .ip-assessment {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.86rem;
+            margin: 0.55rem 0 1rem;
+        }}
+        .ip-assessment th, .ip-assessment td {{
+            border: 1px solid #d1d5db;
+            padding: 8px 10px;
+            text-align: left;
+        }}
+        .ip-assessment th {{
+            background: #dbeafe;
+            color: #111827;
+            font-weight: 700;
+        }}
+        </style>
+        <table class="ip-assessment">
+            <thead>
+                <tr>
+                    <th>Acao/Projeto</th>
+                    <th>Objetivo/indicador</th>
+                    <th>Natureza</th>
+                    <th>Impacto</th>
+                    <th>Probabilidade</th>
+                    <th>Classe I/P</th>
+                    <th>Indice I/P</th>
+                </tr>
+            </thead>
+            <tbody>{''.join(rows)}</tbody>
+        </table>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_fuzzy_proportion_scale() -> None:
@@ -762,9 +840,8 @@ def main() -> None:
     perspective_matrices = comparison_inputs()
     objective_matrices = objective_comparison_inputs(objectives)
     projects = project_objective_link_inputs(projects, objectives)
-    render_impact_probability_matrix()
 
-    st.subheader("9. Consolidacao, matriz global e ranking")
+    st.subheader("8. Consolidacao, matriz global e ranking")
     if st.button("Consolidar SAPEVO-BSC", type="primary"):
         weight_result = consolidate_sapevo_weights(perspective_matrices)
         objective_result = consolidate_objective_scores_by_perspective(objectives, weight_result.weights, objective_matrices)
