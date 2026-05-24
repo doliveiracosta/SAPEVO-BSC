@@ -46,7 +46,7 @@ def asset_data_uri(path: Path) -> str:
 
 def asset_path(*names: str) -> Path | None:
     base = Path(__file__).resolve().parent
-    search_dirs = [base / "assets", Path.cwd() / "assets", Path("assets")]
+    search_dirs = [base / "assets", Path.cwd() / "assets", Path("assets"), base, Path.cwd()]
     for directory in search_dirs:
         for name in names:
             candidate = directory / name
@@ -148,9 +148,22 @@ def render_cover() -> None:
         """,
         unsafe_allow_html=True,
     )
-    logo_upe = asset_path("logo_upe.png", "logo_upe.jpg", "logo_upe.jpeg", "logo_upe.jfif")
-    logo_poli = asset_path("logo_upe_poli.png", "logo_poli.png")
-    logo_ppgec = asset_path("logo_ppgec.png")
+    logo_upe = asset_path(
+        "logo_upe.png",
+        "logo_upe.jpg",
+        "logo_upe.jpeg",
+        "logo_upe.jfif",
+        "download (1).jfif",
+    )
+    logo_poli = asset_path(
+        "logo_upe_poli.png",
+        "logo_poli.png",
+        "download (2).png",
+    )
+    logo_ppgec = asset_path(
+        "logo_ppgec.png",
+        "download (1).png",
+    )
     logo_items = []
     if logo_upe:
         logo_items.append(f'<img class="logo-upe" src="{asset_data_uri(logo_upe)}" alt="UPE">')
@@ -169,7 +182,7 @@ def render_cover() -> None:
     st.title(APP_NAME)
     st.markdown(f"### {APP_SUBTITLE}")
     st.markdown(f"**{APP_OWNER_LABEL}**")
-    st.caption("Metodo multicriterio para priorizacao de projetos estrategicos com BSC, SAPEVO-M e matriz Impacto/Probabilidade.")
+    st.caption("Metodo multicriterio para priorizacao de projetos e acoes estrategicas com enfase em alinhamento estrategico.")
     st.markdown(
         f'<div class="paper-reference"><a href="{PAPER_URL}" target="_blank">Artigo de referência: SAPEVO-BSC Multicriteria Method</a></div>',
         unsafe_allow_html=True,
@@ -235,11 +248,12 @@ def objective_inputs() -> pd.DataFrame:
 
 def perspective_inputs() -> None:
     st.subheader("Perspectivas BSC")
-    st.caption("Use uma perspectiva por linha. O padrão segue o Balanced Scorecard.")
-    value = st.text_area("Perspectivas", "\n".join(st.session_state.perspectives), height=130)
-    perspectives = [line.strip() for line in value.splitlines() if line.strip()]
-    if perspectives:
-        st.session_state.perspectives = perspectives
+    st.caption("Estrutura fixa do Balanced Scorecard utilizada como criterio estrategico do SAPEVO-BSC.")
+    st.session_state.perspectives = BSC_PERSPECTIVES.copy()
+    cols = st.columns(len(st.session_state.perspectives))
+    for column, perspective in zip(cols, st.session_state.perspectives):
+        with column:
+            st.markdown(f"**{perspective}**")
 
 
 def evaluator_inputs() -> None:
@@ -291,25 +305,46 @@ def sync_project_columns(projects: pd.DataFrame) -> pd.DataFrame:
     projects = projects.copy()
     if "Acao/Projeto" not in projects.columns and "Projeto" in projects.columns:
         projects["Acao/Projeto"] = projects["Projeto"]
+    if "Perspectiva" not in projects.columns:
+        projects["Perspectiva"] = st.session_state.perspectives[0] if st.session_state.perspectives else ""
     projects["Projeto"] = projects.get("Acao/Projeto", "")
     return projects
 
 
 def project_table_inputs() -> pd.DataFrame:
     st.subheader("Acoes e projetos estrategicos")
-    st.caption("Cadastre as acoes/projetos. O alinhamento aos objetivos sera definido na particao fuzzy da etapa seguinte.")
+    st.caption("Escolha a quantidade de acoes/projetos, associe uma perspectiva BSC principal e preencha impacto/probabilidade.")
     st.session_state.projects = sync_project_columns(st.session_state.projects)
     if "Natureza" not in st.session_state.projects.columns:
         st.session_state.projects["Natureza"] = "Oportunidade"
+    project_count = st.number_input(
+        "Quantidade de acoes/projetos",
+        min_value=1,
+        max_value=100,
+        value=max(1, len(st.session_state.projects)),
+        step=1,
+    )
+    projects = st.session_state.projects.copy().reset_index(drop=True)
+    desired_count = int(project_count)
+    if len(projects) < desired_count:
+        for index in range(len(projects), desired_count):
+            projects.loc[index, "Acao/Projeto"] = f"P{index + 1}"
+            projects.loc[index, "Perspectiva"] = st.session_state.perspectives[0] if st.session_state.perspectives else ""
+            projects.loc[index, "Natureza"] = "Oportunidade"
+            projects.loc[index, "Impacto"] = "Moderado"
+            projects.loc[index, "Probabilidade"] = "Moderado"
+    elif len(projects) > desired_count:
+        projects = projects.iloc[:desired_count].copy()
+    projects = sync_project_columns(projects)
     edited = st.data_editor(
-        st.session_state.projects[
-            ["Acao/Projeto", "Natureza", "Impacto", "Probabilidade"]
+        projects[
+            ["Acao/Projeto", "Perspectiva", "Natureza", "Impacto", "Probabilidade"]
         ],
         use_container_width=True,
-        num_rows="dynamic",
         hide_index=True,
         column_config={
             "Acao/Projeto": st.column_config.TextColumn("Acao/Projeto", required=True),
+            "Perspectiva": st.column_config.SelectboxColumn("Perspectiva BSC principal", options=st.session_state.perspectives),
             "Natureza": st.column_config.SelectboxColumn("Natureza", options=PROJECT_NATURES),
             "Impacto": st.column_config.SelectboxColumn("Impacto", options=list(IMPACT_PROBABILITY_SCALE)),
             "Probabilidade": st.column_config.SelectboxColumn("Probabilidade", options=list(IMPACT_PROBABILITY_SCALE)),
@@ -320,9 +355,64 @@ def project_table_inputs() -> pd.DataFrame:
     return edited
 
 
+def render_fuzzy_proportion_scale() -> None:
+    ticks = [
+        ("0%", "Nenhuma"),
+        ("25%", "Baixa"),
+        ("50%", "Moderada"),
+        ("75%", "Alta"),
+        ("100%", "Total"),
+    ]
+    tick_html = "".join(f"<span><strong>{value}</strong><small>{label}</small></span>" for value, label in ticks)
+    st.markdown(
+        f"""
+        <style>
+        .fuzzy-ruler {{
+            margin: 0.2rem 0 1rem;
+            max-width: 760px;
+        }}
+        .fuzzy-ruler-bar {{
+            height: 14px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #fee2e2 0%, #fde68a 50%, #bbf7d0 100%);
+            border: 1px solid #d1d5db;
+        }}
+        .fuzzy-ruler-ticks {{
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-top: 7px;
+            color: #4b5563;
+            font-size: 0.78rem;
+        }}
+        .fuzzy-ruler-ticks span {{
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+        }}
+        .fuzzy-ruler-ticks span:nth-child(1) {{ text-align: left; }}
+        .fuzzy-ruler-ticks span:nth-child(2),
+        .fuzzy-ruler-ticks span:nth-child(3),
+        .fuzzy-ruler-ticks span:nth-child(4) {{ text-align: center; }}
+        .fuzzy-ruler-ticks span:nth-child(5) {{ text-align: right; }}
+        .fuzzy-ruler-ticks small {{
+            color: #6b7280;
+            font-size: 0.72rem;
+        }}
+        </style>
+        <div class="fuzzy-ruler" aria-label="Regua de proporcao fuzzy">
+            <div class="fuzzy-ruler-bar"></div>
+            <div class="fuzzy-ruler-ticks">{tick_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def fuzzy_alignment_inputs(projects: pd.DataFrame, objectives: pd.DataFrame) -> pd.DataFrame:
     st.subheader("Particao fuzzy entre objetivos estrategicos")
     st.caption("Distribua a contribuicao de cada acao/projeto entre os objetivos. A soma de cada linha deve ser 1,00.")
+    render_fuzzy_proportion_scale()
 
     if projects.empty or objectives.empty:
         st.warning("Cadastre acoes/projetos e objetivos estrategicos antes de preencher a particao fuzzy.")
