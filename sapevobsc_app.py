@@ -369,7 +369,7 @@ def sync_project_columns(projects: pd.DataFrame) -> pd.DataFrame:
 
 
 def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame) -> pd.DataFrame:
-    st.subheader("7. Aderencia estrategica e avaliacao Impacto/Probabilidade")
+    st.subheader("7. Acoes/projetos, aderencia estrategica e avaliacao Impacto/Probabilidade")
     st.caption("Distribua a aderencia fuzzy de cada acao/projeto entre as perspectivas BSC e avalie natureza, impacto e probabilidade.")
     if weights.empty:
         st.warning("Consolide os pesos das perspectivas antes de avaliar projetos.")
@@ -660,7 +660,7 @@ def objective_weight_consolidation_inputs(
     if not objective_weights.empty:
         compact_columns = [
             column
-            for column in ["Objetivo estrategico", "Perspectiva dominante", "Peso", "Ranking objetivo"]
+            for column in ["Objetivo estrategico", "Perspectiva dominante", "Peso SAPEVO-BSC", "Ranking objetivo"]
             if column in objective_weights.columns
         ]
         st.markdown("#### Indice estrategico dos objetivos")
