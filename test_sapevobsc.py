@@ -167,9 +167,15 @@ class SAPEVOBSCTests(unittest.TestCase):
 
         self.assertEqual(threat_class, "Alta")
         self.assertEqual(opportunity_class, "Baixa")
-        self.assertGreater(
+        self.assertAlmostEqual(
             impact_probability_index("Ameaca", "Muito alto", "Muito alto"),
+            0.38 * 0.38,
+            places=6,
+        )
+        self.assertAlmostEqual(
             impact_probability_index("Oportunidade", "Muito alto", "Muito alto"),
+            0.38 * 0.38,
+            places=6,
         )
 
     def test_consensus_stats_identifies_high_alignment(self):

@@ -416,7 +416,7 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
     header[1].markdown("**Natureza**")
     header[2].markdown("**Impacto**")
     header[3].markdown("**Probabilidade**")
-    header[4].markdown("**Indice estrategico**")
+    header[4].markdown("**Indice I/P**")
 
     rows = []
     impact_options = list(IMPACT_PROBABILITY_SCALE)
@@ -510,7 +510,7 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
                 border:1px solid #bfdbfe;
                 color:#1e3a8a;
                 font-weight:700;
-            ">{strategic_index:.4f}</div>
+            ">{ip_index:.4f}</div>
             """,
             unsafe_allow_html=True,
         )
