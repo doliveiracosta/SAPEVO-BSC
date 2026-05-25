@@ -73,7 +73,7 @@ def write_pdf_report(
 
     if projects is not None and not projects.empty:
         story.append(paragraph("2. Acoes/projetos identificados", "Heading1"))
-        project_rows = [["Acao/Projeto", "Aderencia fuzzy", "Natureza", "Impacto", "Probabilidade", "Classe I/P"]]
+        project_rows = [["Acao/Projeto", "Aderencia fuzzy", "Natureza", "Impacto", "Probabilidade"]]
         for _, row in projects.iterrows():
             project_rows.append(
                 [
@@ -82,10 +82,9 @@ def write_pdf_report(
                     row.get("Natureza", ""),
                     row.get("Impacto", ""),
                     row.get("Probabilidade", ""),
-                    row.get("Classe I/P", ""),
                 ]
             )
-        story.append(table(project_rows, [2.5 * cm, 4.2 * cm, 2.0 * cm, 2.3 * cm, 2.3 * cm, 2.4 * cm]))
+        story.append(table(project_rows, [2.7 * cm, 5.2 * cm, 2.2 * cm, 2.8 * cm, 2.8 * cm]))
         story.append(Spacer(1, 10))
 
     if objectives is not None and not objectives.empty:
