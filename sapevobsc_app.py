@@ -687,7 +687,11 @@ def objective_weight_consolidation_inputs(
         st.caption("Resumo do indice consolidado dos objetivos. A matriz detalhada fica recolhida para consulta metodologica.")
         st.dataframe(objective_weights[compact_columns], use_container_width=True, hide_index=True)
         with st.expander("Matriz global objetivo x perspectiva", expanded=False):
-            hidden_columns = [column for column in objective_weights.columns if "(%)" not in column and column != "Peso objetivo"]
+            hidden_columns = [
+                column
+                for column in objective_weights.columns
+                if "(%)" not in column and column not in {"Peso objetivo", "Objetivo/KPI"}
+            ]
             st.dataframe(objective_weights[hidden_columns], use_container_width=True, hide_index=True)
     else:
         st.info("Consolide os pesos dos objetivos para usar esses valores na etapa de projetos.")
