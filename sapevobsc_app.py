@@ -317,8 +317,8 @@ def evaluator_inputs() -> None:
 
 
 def comparison_inputs() -> list[pd.DataFrame]:
-    st.subheader("4. Comparacao SAPEVO-M das perspectivas BSC")
-    st.caption("Primeiro ciclo SAPEVO-M: define o peso estrategico das perspectivas BSC.")
+    st.subheader("4. Comparacao das perspectivas BSC")
+    st.caption("Compare as perspectivas par-a-par para definir o peso estrategico de cada eixo BSC.")
     perspectives = st.session_state.perspectives
     if len(perspectives) < 2:
         st.warning("Informe ao menos duas perspectivas.")
