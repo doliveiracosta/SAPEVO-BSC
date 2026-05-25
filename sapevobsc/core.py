@@ -204,7 +204,7 @@ def calculate_consensus_stats(evaluator_vectors: pd.DataFrame) -> ConsensusStats
             "Indicador": "Perspectiva mais divergente",
             "Valor": most_divergent,
             "Classificacao": "Maior dispersao",
-            "Leitura": "Perspectiva BSC com maior diferenca de leitura entre decisores.",
+            "Leitura": "Perspectiva estrategica com maior diferenca de leitura entre decisores.",
         },
     ]
     summary = pd.DataFrame(summary_rows)
@@ -226,7 +226,7 @@ def consensus_interpretation(kendall_w: float | None, spearman_mean: float | Non
         return "Ha apenas um decisor ou dados insuficientes; a analise de consenso entre avaliadores nao foi calculada."
 
     return (
-        f"A analise estatistica indica {consensus_label} entre os decisores nas perspectivas BSC, "
+        f"A analise estatistica indica {consensus_label} entre os decisores nas perspectivas estrategicas, "
         f"com {spearman_label} entre as ordenacoes individuais. A perspectiva com maior dispersao foi "
         f"{most_divergent}, recomendando atencao gerencial na validacao dos pesos consolidados."
     )
