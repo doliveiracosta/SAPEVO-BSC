@@ -204,7 +204,7 @@ def calculate_consensus_stats(evaluator_vectors: pd.DataFrame) -> ConsensusStats
             "Indicador": "Perspectiva mais divergente",
             "Valor": most_divergent,
             "Classificacao": "Maior dispersao",
-            "Leitura": "Perspectiva BSC com maior diferenca de leitura entre decisores.",
+            "Leitura": "Perspectiva estrategica com maior diferenca de leitura entre decisores.",
         },
     ]
     summary = pd.DataFrame(summary_rows)
@@ -226,7 +226,7 @@ def consensus_interpretation(kendall_w: float | None, spearman_mean: float | Non
         return "Ha apenas um decisor ou dados insuficientes; a analise de consenso entre avaliadores nao foi calculada."
 
     return (
-        f"A analise estatistica indica {consensus_label} entre os decisores nas perspectivas BSC, "
+        f"A analise estatistica indica {consensus_label} entre os decisores nas perspectivas estrategicas, "
         f"com {spearman_label} entre as ordenacoes individuais. A perspectiva com maior dispersao foi "
         f"{most_divergent}, recomendando atencao gerencial na validacao dos pesos consolidados."
     )
@@ -502,23 +502,15 @@ def calculate_project_weights_from_perspective_alignment(
             raw_value = project.get(f"Aderencia - {perspective}", 0.0)
             memberships[perspective] = max(0.0, min(1.0, float(raw_value or 0.0)))
 
-        total_membership = sum(memberships.values())
-        if total_membership > 0:
-            normalized_memberships = {
-                perspective: value / total_membership
-                for perspective, value in memberships.items()
-            }
-        else:
-            normalized_memberships = {
-                perspective: 1.0 / len(perspective_names)
-                for perspective in perspective_names
-            }
-
         strategic_index = sum(
-            normalized_memberships[perspective] * weight_map[perspective]
+            memberships[perspective] * weight_map[perspective]
             for perspective in perspective_names
         )
-        dominant_perspective = max(normalized_memberships, key=normalized_memberships.get) if normalized_memberships else ""
+        dominant_perspective = (
+            max(memberships, key=memberships.get)
+            if memberships and max(memberships.values()) > 0
+            else ""
+        )
 
         row = {
             "Projeto": name,
@@ -526,17 +518,17 @@ def calculate_project_weights_from_perspective_alignment(
             "Projeto/KPI": name,
             "Perspectiva": dominant_perspective,
             "Peso perspectiva": round(float(weight_map.get(dominant_perspective, 0.0)), 6),
-            "Peso local SAPEVO-M": round(float(normalized_memberships.get(dominant_perspective, 0.0)), 6),
+            "Peso local SAPEVO-M": round(float(memberships.get(dominant_perspective, 0.0)), 6),
             "Peso SAPEVO-BSC": round(strategic_index, 6),
             "Indice estrategico": round(strategic_index, 6),
             "Aderencia fuzzy": "; ".join(
-                f"{perspective}: {normalized_memberships[perspective]:.2f}"
+                f"{perspective}: {memberships[perspective]:.2f}"
                 for perspective in perspective_names
-                if normalized_memberships[perspective] > 0
+                if memberships[perspective] > 0
             ),
         }
         for perspective in perspective_names:
-            row[perspective] = round(normalized_memberships[perspective], 6)
+            row[perspective] = round(memberships[perspective], 6)
         rows.append(row)
 
     return pd.DataFrame(rows).sort_values(
@@ -698,8 +690,7 @@ def impact_probability_classification(nature: str, impact: str, probability: str
 
 
 def impact_probability_index(nature: str, impact: str, probability: str) -> float:
-    classification = impact_probability_classification(nature, impact, probability)
-    return float(IMPACT_PROBABILITY_CLASS_VALUES.get(classification, 0.0))
+    return scale_value(impact) * scale_value(probability)
 
 
 def rank_projects(projects: pd.DataFrame, weights: pd.DataFrame, project_weights: pd.DataFrame | None = None) -> pd.DataFrame:
@@ -794,7 +785,10 @@ def strategic_conclusion(ranking: pd.DataFrame, weights: pd.DataFrame) -> str:
 
     return (
         f"A priorizacao indica uma carteira {intensity}, com maior peso estrategico associado a "
-        f"{leading_perspective}. A acao/projeto mais prioritaria e {top['Projeto']}, associada ao "
-        f"objetivo estrategico {top.get('Objetivo/KPI', '')} e vinculada a {top['Perspectiva']}, "
-        f"combinando peso SAPEVO-BSC, impacto e probabilidade."
+        f"{leading_perspective}. A acao/projeto mais prioritaria e {top['Projeto']}, vinculada a "
+        f"{top['Perspectiva']}, combinando peso estrategico, impacto e probabilidade. "
+        "A leitura deve distinguir dois horizontes: os objetivos estrategicos representam direcoes "
+        "de longo prazo para o negocio, enquanto a matriz Impacto/Probabilidade funciona como uma "
+        "camada operacional de curto prazo, orientando quais acoes/projetos devem receber prioridade "
+        "imediata de execucao."
     )
