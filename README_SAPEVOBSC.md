@@ -13,8 +13,9 @@ Artigo de referencia: https://www.researchgate.net/publication/390109234_SAPEVO-
 3. Cadastrar decisores/avaliadores.
 4. Comparar perspectivas BSC por escala ordinal SAPEVO-M.
 5. Para cada perspectiva BSC, comparar os objetivos/indicadores por escala ordinal SAPEVO-M.
-6. Cadastrar cada acao/projeto, vincular ao objetivo/indicador estrategico correspondente e avaliar impacto/probabilidade com classe I/P calculada automaticamente.
-7. Gerar a matriz global objetivo x perspectiva, calcular o peso final de cada objetivo, calcular o ranking de prioridade e exportar relatorio PDF.
+6. Consolidar a matriz global objetivo x perspectiva e calcular o peso final de cada objetivo.
+7. Cadastrar cada acao/projeto, vincular ao objetivo/indicador estrategico correspondente e avaliar impacto/probabilidade com classe I/P calculada automaticamente.
+8. Calcular o ranking de prioridade dos projetos e exportar relatorio PDF.
 
 ## Formula operacional
 

@@ -367,8 +367,8 @@ def sync_project_columns(projects: pd.DataFrame) -> pd.DataFrame:
 
 
 def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFrame) -> pd.DataFrame:
-    st.subheader("6. Acoes/projetos, objetivos e avaliacao Impacto/Probabilidade")
-    st.caption("Associe cada acao/projeto ao objetivo/indicador e avalie natureza, impacto e probabilidade. A classe I/P muda conforme o item seja ameaca ou oportunidade.")
+    st.subheader("7. Acoes/projetos, objetivos e avaliacao Impacto/Probabilidade")
+    st.caption("Use os pesos consolidados dos objetivos, associe cada acao/projeto ao objetivo/indicador e avalie natureza, impacto e probabilidade.")
     if objectives.empty:
         st.warning("Cadastre objetivos/indicadores antes de realizar o vinculo.")
         return projects
@@ -609,6 +609,41 @@ def radar_svg(weights: pd.DataFrame) -> str:
     """
 
 
+def objective_weight_consolidation_inputs(
+    objectives: pd.DataFrame,
+    perspective_matrices: list[pd.DataFrame],
+    objective_matrices: dict[str, list[pd.DataFrame]],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    st.subheader("6. Consolidacao dos pesos dos objetivos/indicadores")
+    st.caption("Gere a matriz global objetivo x perspectiva antes de vincular projetos e avaliar impacto/probabilidade.")
+
+    if st.button("Consolidar pesos dos objetivos", type="primary"):
+        weight_result = consolidate_sapevo_weights(perspective_matrices)
+        objective_result = consolidate_objective_scores_by_perspective(objectives, weight_result.weights, objective_matrices)
+        st.session_state.weights = weight_result.weights
+        st.session_state.objective_weights = objective_result.project_weights
+        st.success("Pesos dos objetivos/indicadores consolidados.")
+
+    weights = st.session_state.weights
+    objective_weights = st.session_state.objective_weights
+    if not weights.empty:
+        st.markdown("#### Pesos das perspectivas BSC")
+        col1, col2 = st.columns([1.1, 1])
+        with col1:
+            st.dataframe(weights, use_container_width=True, hide_index=True)
+        with col2:
+            st.markdown(radar_svg(weights), unsafe_allow_html=True)
+
+    if not objective_weights.empty:
+        st.markdown("#### Matriz global objetivo x perspectiva e ranking dos objetivos")
+        st.caption("Peso final do objetivo/KPI = soma da pontuacao do objetivo em cada perspectiva multiplicada pelo peso da perspectiva.")
+        st.dataframe(objective_weights, use_container_width=True, hide_index=True)
+    else:
+        st.info("Consolide os pesos dos objetivos para usar esses valores na etapa de projetos.")
+
+    return weights, objective_weights
+
+
 def main() -> None:
     st.set_page_config(page_title=APP_NAME, layout="wide")
     init_state()
@@ -620,39 +655,22 @@ def main() -> None:
     evaluator_inputs()
     perspective_matrices = comparison_inputs()
     objective_matrices = objective_comparison_inputs(objectives)
+    weights, objective_weights = objective_weight_consolidation_inputs(objectives, perspective_matrices, objective_matrices)
+    if weights.empty or objective_weights.empty:
+        return
+
     projects = project_objective_link_inputs(st.session_state.projects, objectives)
 
-    st.subheader("7. Consolidacao, matriz global e ranking")
-    if st.button("Consolidar SAPEVO-BSC", type="primary"):
-        weight_result = consolidate_sapevo_weights(perspective_matrices)
-        objective_result = consolidate_objective_scores_by_perspective(objectives, weight_result.weights, objective_matrices)
-        objective_weights = objective_result.project_weights
+    st.subheader("8. Ranking dos projetos estrategicos")
+    if st.button("Consolidar ranking dos projetos", type="primary"):
         project_weights = calculate_project_weights_from_objectives(projects, objective_weights)
-        ranking = rank_projects(projects, weight_result.weights, project_weights)
-        st.session_state.weights = weight_result.weights
-        st.session_state.objective_weights = objective_weights
+        ranking = rank_projects(projects, weights, project_weights)
         st.session_state.project_weights = project_weights
         st.session_state.ranking = ranking
-        st.success("Consolidacao realizada.")
+        st.success("Ranking dos projetos consolidado.")
 
-    weights = st.session_state.weights
-    objective_weights = st.session_state.objective_weights
     project_weights = st.session_state.project_weights
     ranking = st.session_state.ranking
-    if not weights.empty:
-        st.divider()
-        st.subheader("Pesos consolidados das perspectivas")
-        col1, col2 = st.columns([1.1, 1])
-        with col1:
-            st.dataframe(weights, use_container_width=True, hide_index=True)
-        with col2:
-            st.markdown(radar_svg(weights), unsafe_allow_html=True)
-
-    if not objective_weights.empty:
-        st.subheader("Matriz global objetivo x perspectiva e ranking dos objetivos")
-        st.caption("Peso final do objetivo/KPI = soma da pontuacao do objetivo em cada perspectiva multiplicada pelo peso da perspectiva.")
-        st.dataframe(objective_weights, use_container_width=True, hide_index=True)
-
     if not project_weights.empty:
         st.subheader("Pesos SAPEVO-BSC das acoes/projetos")
         st.caption("Cada acao/projeto herda o peso SAPEVO-BSC do objetivo/KPI ao qual foi vinculada.")
