@@ -230,7 +230,7 @@ def render_cover() -> None:
             <ol>
                 <li>Registre o contexto, a visao do negocio e o horizonte estrategico.</li>
                 <li>Cadastre os objetivos/indicadores estrategicos que serao tratados como alternativas.</li>
-                <li>Cadastre os decisores/avaliadores que participarao da comparacao SAPEVO-M.</li>
+                <li>Cadastre os decisores/avaliadores que participarao das comparacoes paritarias.</li>
                 <li>Compare as perspectivas par-a-par usando a escala ordinal de -3 a +3.</li>
                 <li>Para cada perspectiva BSC, compare os objetivos/indicadores entre si.</li>
                 <li>Gere a matriz global objetivo x perspectiva e o ranking prioritario dos objetivos.</li>
@@ -411,13 +411,12 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
     elif len(linked) > desired_count:
         linked = linked.iloc[:desired_count].copy()
     linked = sync_project_columns(linked)
-    header = st.columns([1.1, 1.0, 1.0, 1.0, 0.85, 0.95])
+    header = st.columns([1.15, 1.05, 1.05, 1.05, 1.0])
     header[0].markdown("**Acao/Projeto**")
     header[1].markdown("**Natureza**")
     header[2].markdown("**Impacto**")
     header[3].markdown("**Probabilidade**")
-    header[4].markdown("**Classe I/P**")
-    header[5].markdown("**Indice estrategico**")
+    header[4].markdown("**Indice estrategico**")
 
     rows = []
     impact_options = list(IMPACT_PROBABILITY_SCALE)
@@ -434,7 +433,7 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
         if probability_value not in impact_options:
             probability_value = "Moderado"
 
-        col1, col2, col3, col4, col5, col6 = st.columns([1.1, 1.0, 1.0, 1.0, 0.85, 0.95])
+        col1, col2, col3, col4, col5 = st.columns([1.15, 1.05, 1.05, 1.05, 1.0])
         project = col1.text_input(
             f"Acao/Projeto {index + 1}",
             value=project_value,
@@ -500,22 +499,6 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
         dominant_perspective = max(normalized_memberships, key=normalized_memberships.get) if normalized_memberships else ""
         color = RISK_CLASS_COLORS.get(classification, "#e5e7eb")
         col5.markdown(
-            f"""
-            <div style="
-                background:{color};
-                color:#111827;
-                min-height:38px;
-                border-radius:6px;
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                font-weight:700;
-                border:1px solid rgba(17,24,39,.12);
-            ">{classification}</div>
-            """,
-            unsafe_allow_html=True,
-        )
-        col6.markdown(
             f"""
             <div style="
                 min-height:38px;
@@ -735,13 +718,6 @@ def main() -> None:
             if column in project_weights.columns
         ]
         st.dataframe(project_weights[compact_project_weight_columns], use_container_width=True, hide_index=True)
-        with st.expander("Detalhes tecnicos do indice estrategico fuzzy", expanded=False):
-            technical_columns = [
-                column
-                for column in project_weights.columns
-                if "(%)" not in column and column not in {"Projeto/KPI", "Objetivo/KPI", "Peso local SAPEVO-M"}
-            ]
-            st.dataframe(project_weights[technical_columns], use_container_width=True, hide_index=True)
 
     if not ranking.empty:
         st.subheader("Ranking dos projetos estrategicos")
