@@ -664,8 +664,18 @@ def objective_weight_consolidation_inputs(
             if column in objective_weights.columns
         ]
         st.markdown("#### Indice estrategico dos objetivos")
-        st.caption("Resumo do indice consolidado dos objetivos. A matriz detalhada fica recolhida para consulta metodologica.")
-        st.dataframe(objective_weights[compact_columns], use_container_width=True, hide_index=True)
+        st.caption(
+            "Resumo do indice consolidado dos objetivos. A maior contribuicao pode se repetir, "
+            "pois indica a perspectiva com maior pontuacao relativa para cada objetivo."
+        )
+        compact_objectives = objective_weights[compact_columns].rename(
+            columns={
+                "Perspectiva dominante": "Maior contribuicao estrategica",
+                "Peso SAPEVO-BSC": "Indice estrategico",
+                "Ranking objetivo": "Ranking",
+            }
+        )
+        st.dataframe(compact_objectives, use_container_width=True, hide_index=True)
         with st.expander("Matriz global objetivo x perspectiva", expanded=False):
             hidden_columns = [
                 column
