@@ -745,7 +745,21 @@ def main() -> None:
 
     if not ranking.empty:
         st.subheader("Ranking dos projetos estrategicos")
-        st.dataframe(ranking, use_container_width=True, hide_index=True)
+        visible_ranking = ranking.copy()
+        visible_ranking = visible_ranking.rename(columns={"Peso SAPEVO-BSC": "Peso", "Indice de prioridade": "Indice"})
+        ranking_columns = [
+            column
+            for column in ["Ranking", "Projeto", "Perspectiva", "Natureza", "Peso", "Impacto", "Probabilidade", "Classificacao I/P", "Indice"]
+            if column in visible_ranking.columns
+        ]
+        st.dataframe(visible_ranking[ranking_columns], use_container_width=True, hide_index=True)
+        with st.expander("Detalhes tecnicos do ranking", expanded=False):
+            technical_ranking_columns = [
+                column
+                for column in ranking.columns
+                if column not in {"Objetivo/KPI"}
+            ]
+            st.dataframe(ranking[technical_ranking_columns], use_container_width=True, hide_index=True)
         st.info(strategic_conclusion(ranking, weights))
 
         report = pdf_bytes(
