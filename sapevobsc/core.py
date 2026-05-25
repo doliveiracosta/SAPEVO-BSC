@@ -168,8 +168,10 @@ def calculate_consensus_stats(evaluator_vectors: pd.DataFrame) -> ConsensusStats
         else 0.0,
         axis=1,
     )
-    dispersion["Peso medio (%)"] = (100 * dispersion["Peso medio"]).round(2)
-    dispersion["CV (%)"] = (100 * dispersion["Coeficiente de variacao"]).round(2)
+    dispersion["Comentario"] = dispersion.apply(
+        lambda row: dispersion_comment(float(row["Coeficiente de variacao"])),
+        axis=1,
+    )
     dispersion = dispersion.sort_values("Desvio padrao", ascending=False).reset_index(drop=True)
 
     if not dispersion.empty:
@@ -228,6 +230,16 @@ def consensus_interpretation(kendall_w: float | None, spearman_mean: float | Non
         f"com {spearman_label} entre as ordenacoes individuais. A perspectiva com maior dispersao foi "
         f"{most_divergent}, recomendando atencao gerencial na validacao dos pesos consolidados."
     )
+
+
+def dispersion_comment(coefficient: float) -> str:
+    if coefficient >= 0.50:
+        return "Alta divergencia relativa; recomenda discussao entre decisores."
+    if coefficient >= 0.25:
+        return "Divergencia moderada; convem validar a leitura estrategica."
+    if coefficient > 0:
+        return "Baixa divergencia relativa entre decisores."
+    return "Sem divergencia observada."
 
 
 def project_name(row: pd.Series) -> str:
@@ -782,7 +794,6 @@ def strategic_conclusion(ranking: pd.DataFrame, weights: pd.DataFrame) -> str:
 
     return (
         f"A priorizacao indica uma carteira {intensity}, com maior peso estrategico associado a "
-        f"{leading_perspective}. A acao/projeto mais prioritaria e {top['Projeto']}, associada ao "
-        f"objetivo estrategico {top.get('Objetivo/KPI', '')} e vinculada a {top['Perspectiva']}, "
-        f"combinando peso SAPEVO-BSC, impacto e probabilidade."
+        f"{leading_perspective}. A acao/projeto mais prioritaria e {top['Projeto']}, vinculada a "
+        f"{top['Perspectiva']}, combinando peso estrategico, impacto e probabilidade."
     )
