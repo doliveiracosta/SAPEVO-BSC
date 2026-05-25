@@ -4,7 +4,9 @@ import pandas as pd
 
 from sapevobsc.core import (
     build_pairwise_matrix,
+    calculate_consensus_stats,
     calculate_project_weights_from_objectives,
+    calculate_project_weights_from_perspective_alignment,
     compute_objective_weights,
     consolidate_objective_scores_by_perspective,
     consolidate_objective_sapevo_weights,
@@ -169,6 +171,48 @@ class SAPEVOBSCTests(unittest.TestCase):
             impact_probability_index("Ameaca", "Muito alto", "Muito alto"),
             impact_probability_index("Oportunidade", "Muito alto", "Muito alto"),
         )
+
+    def test_consensus_stats_identifies_high_alignment(self):
+        vectors = pd.DataFrame(
+            {
+                "Avaliador 1": [0.4, 0.3, 0.2, 0.1],
+                "Avaliador 2": [0.42, 0.28, 0.2, 0.1],
+                "Avaliador 3": [0.38, 0.32, 0.2, 0.1],
+            },
+            index=["Financeira", "Clientes", "Processos Internos", "Aprendizado e Crescimento"],
+        )
+
+        stats = calculate_consensus_stats(vectors)
+        kendall_w = float(stats.summary.loc[stats.summary["Indicador"] == "Kendall W", "Valor"].iloc[0])
+        spearman = float(stats.summary.loc[stats.summary["Indicador"] == "Spearman medio", "Valor"].iloc[0])
+
+        self.assertGreaterEqual(kendall_w, 0.9)
+        self.assertGreaterEqual(spearman, 0.9)
+        self.assertIn("Financeira", stats.evaluator_rankings["Perspectiva"].tolist())
+
+    def test_project_weight_uses_fuzzy_perspective_alignment(self):
+        perspective_weights = pd.DataFrame(
+            {
+                "Perspectiva": ["Financeira", "Clientes", "Processos Internos"],
+                "Peso": [0.5, 0.3, 0.2],
+            }
+        )
+        projects = pd.DataFrame(
+            [
+                {
+                    "Acao/Projeto": "P1",
+                    "Aderencia - Financeira": 0.2,
+                    "Aderencia - Clientes": 0.6,
+                    "Aderencia - Processos Internos": 0.2,
+                }
+            ]
+        )
+
+        result = calculate_project_weights_from_perspective_alignment(projects, perspective_weights)
+        expected = (0.2 * 0.5) + (0.6 * 0.3) + (0.2 * 0.2)
+
+        self.assertAlmostEqual(float(result.iloc[0]["Peso SAPEVO-BSC"]), expected, places=6)
+        self.assertEqual(result.iloc[0]["Perspectiva"], "Clientes")
 
 
 if __name__ == "__main__":

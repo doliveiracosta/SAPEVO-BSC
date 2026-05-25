@@ -22,7 +22,8 @@ from sapevobsc.constants import (
 )
 from sapevobsc.core import (
     build_pairwise_matrix,
-    calculate_project_weights_from_objectives,
+    calculate_consensus_stats,
+    calculate_project_weights_from_perspective_alignment,
     consolidate_objective_scores_by_perspective,
     consolidate_sapevo_weights,
     impact_probability_classification,
@@ -82,6 +83,7 @@ def init_state() -> None:
             ]
         ),
         "weights": pd.DataFrame(),
+        "perspective_evaluator_vectors": pd.DataFrame(),
         "objective_weights": pd.DataFrame(),
         "fuzzy_alignment": pd.DataFrame(),
         "project_weights": pd.DataFrame(),
@@ -366,26 +368,30 @@ def sync_project_columns(projects: pd.DataFrame) -> pd.DataFrame:
     return projects
 
 
-def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFrame) -> pd.DataFrame:
-    st.subheader("7. Acoes/projetos, objetivos e avaliacao Impacto/Probabilidade")
-    st.caption("Use os pesos consolidados dos objetivos, associe cada acao/projeto ao objetivo/indicador e avalie natureza, impacto e probabilidade.")
-    if objectives.empty:
-        st.warning("Cadastre objetivos/indicadores antes de realizar o vinculo.")
+def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame) -> pd.DataFrame:
+    st.subheader("7. Acoes/projetos, aderencia estrategica e avaliacao Impacto/Probabilidade")
+    st.caption("Distribua a aderencia fuzzy de cada acao/projeto entre as perspectivas BSC e avalie natureza, impacto e probabilidade.")
+    if weights.empty:
+        st.warning("Consolide os pesos das perspectivas antes de avaliar projetos.")
         return projects
 
-    objective_options = [
+    perspective_options = [
         str(item).strip()
-        for item in objectives["Objetivo estrategico"].astype(str).tolist()
+        for item in weights["Perspectiva"].astype(str).tolist()
         if str(item).strip()
     ]
-    if not objective_options:
+    if not perspective_options:
         return projects
 
     if projects.empty:
-        projects = pd.DataFrame(columns=["Acao/Projeto", "Objetivo estrategico", "Natureza", "Impacto", "Probabilidade"])
+        projects = pd.DataFrame(columns=["Acao/Projeto", "Natureza", "Impacto", "Probabilidade"])
     linked = sync_project_columns(projects).reset_index(drop=True)
     if "Natureza" not in linked.columns:
         linked["Natureza"] = "Oportunidade"
+    for perspective in perspective_options:
+        column = f"Aderencia - {perspective}"
+        if column not in linked.columns:
+            linked[column] = 0.0
     project_count = st.number_input(
         "Quantidade de acoes/projetos",
         min_value=1,
@@ -397,37 +403,30 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
     if len(linked) < desired_count:
         for index in range(len(linked), desired_count):
             linked.loc[index, "Acao/Projeto"] = f"P{index + 1}"
-            linked.loc[index, "Objetivo estrategico"] = objective_options[0]
-            linked.loc[index, "Perspectiva"] = ""
             linked.loc[index, "Natureza"] = "Oportunidade"
             linked.loc[index, "Impacto"] = "Moderado"
             linked.loc[index, "Probabilidade"] = "Moderado"
+            for perspective_index, perspective in enumerate(perspective_options):
+                linked.loc[index, f"Aderencia - {perspective}"] = 1.0 if perspective_index == 0 else 0.0
     elif len(linked) > desired_count:
         linked = linked.iloc[:desired_count].copy()
     linked = sync_project_columns(linked)
-    linked["Objetivo estrategico"] = linked["Objetivo estrategico"].where(
-        linked["Objetivo estrategico"].isin(objective_options),
-        objective_options[0],
-    )
-    header = st.columns([1.1, 1.7, 1.0, 1.0, 1.0, 0.85, 0.75])
+    header = st.columns([1.1, 1.0, 1.0, 1.0, 0.85, 0.95])
     header[0].markdown("**Acao/Projeto**")
-    header[1].markdown("**Objetivo/indicador estrategico**")
-    header[2].markdown("**Natureza**")
-    header[3].markdown("**Impacto**")
-    header[4].markdown("**Probabilidade**")
-    header[5].markdown("**Classe I/P**")
-    header[6].markdown("**Indice I/P**")
+    header[1].markdown("**Natureza**")
+    header[2].markdown("**Impacto**")
+    header[3].markdown("**Probabilidade**")
+    header[4].markdown("**Classe I/P**")
+    header[5].markdown("**Indice estrategico**")
 
     rows = []
     impact_options = list(IMPACT_PROBABILITY_SCALE)
+    perspective_weight_map = dict(zip(weights["Perspectiva"], weights["Peso"]))
     for index, row in linked.iterrows():
         project_value = str(row.get("Acao/Projeto", "") or f"P{index + 1}")
-        objective_value = str(row.get("Objetivo estrategico", objective_options[0]))
         nature_value = str(row.get("Natureza", "Oportunidade"))
         impact_value = str(row.get("Impacto", "Moderado"))
         probability_value = str(row.get("Probabilidade", "Moderado"))
-        if objective_value not in objective_options:
-            objective_value = objective_options[0]
         if nature_value not in PROJECT_NATURES:
             nature_value = PROJECT_NATURES[0]
         if impact_value not in impact_options:
@@ -435,35 +434,28 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
         if probability_value not in impact_options:
             probability_value = "Moderado"
 
-        col1, col2, col3, col4, col5, col6, col7 = st.columns([1.1, 1.7, 1.0, 1.0, 1.0, 0.85, 0.75])
+        col1, col2, col3, col4, col5, col6 = st.columns([1.1, 1.0, 1.0, 1.0, 0.85, 0.95])
         project = col1.text_input(
             f"Acao/Projeto {index + 1}",
             value=project_value,
             label_visibility="collapsed",
             key=f"project_name_{index}",
         )
-        objective = col2.selectbox(
-            f"Objetivo/indicador {index + 1}",
-            options=objective_options,
-            index=objective_options.index(objective_value),
-            label_visibility="collapsed",
-            key=f"project_objective_{index}",
-        )
-        nature = col3.selectbox(
+        nature = col2.selectbox(
             f"Natureza {index + 1}",
             options=PROJECT_NATURES,
             index=PROJECT_NATURES.index(nature_value),
             label_visibility="collapsed",
             key=f"project_nature_{index}",
         )
-        impact = col4.selectbox(
+        impact = col3.selectbox(
             f"Impacto {index + 1}",
             options=impact_options,
             index=impact_options.index(impact_value),
             label_visibility="collapsed",
             key=f"project_impact_{index}",
         )
-        probability = col5.selectbox(
+        probability = col4.selectbox(
             f"Probabilidade {index + 1}",
             options=impact_options,
             index=impact_options.index(probability_value),
@@ -472,8 +464,42 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
         )
         classification = impact_probability_classification(nature, impact, probability)
         ip_index = round(impact_probability_index(nature, impact, probability), 4)
+        raw_memberships = {}
+        with st.expander(f"Aderencia fuzzy de {project} as perspectivas BSC", expanded=False):
+            st.caption("Use valores de 0 a 1. O calculo normaliza automaticamente a linha para fechar 100%.")
+            slider_cols = st.columns(min(4, len(perspective_options)))
+            for perspective_index, perspective in enumerate(perspective_options):
+                value = float(row.get(f"Aderencia - {perspective}", 1.0 if perspective_index == 0 else 0.0) or 0.0)
+                with slider_cols[perspective_index % len(slider_cols)]:
+                    raw_memberships[perspective] = st.slider(
+                        perspective,
+                        min_value=0.0,
+                        max_value=1.0,
+                        value=max(0.0, min(1.0, value)),
+                        step=0.1,
+                        key=f"project_alignment_{stable_key(index, project, perspective)}",
+                    )
+            raw_total = sum(raw_memberships.values())
+            st.progress(min(raw_total, 1.0), text=f"Soma informada: {raw_total:.2f}")
+
+        total_membership = sum(raw_memberships.values())
+        if total_membership > 0:
+            normalized_memberships = {
+                perspective: value / total_membership
+                for perspective, value in raw_memberships.items()
+            }
+        else:
+            normalized_memberships = {
+                perspective: 1.0 / len(perspective_options)
+                for perspective in perspective_options
+            }
+        strategic_index = sum(
+            normalized_memberships[perspective] * float(perspective_weight_map.get(perspective, 0.0))
+            for perspective in perspective_options
+        )
+        dominant_perspective = max(normalized_memberships, key=normalized_memberships.get) if normalized_memberships else ""
         color = RISK_CLASS_COLORS.get(classification, "#e5e7eb")
-        col6.markdown(
+        col5.markdown(
             f"""
             <div style="
                 background:{color};
@@ -489,7 +515,7 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
             """,
             unsafe_allow_html=True,
         )
-        col7.markdown(
+        col6.markdown(
             f"""
             <div style="
                 min-height:38px;
@@ -497,41 +523,45 @@ def project_objective_link_inputs(projects: pd.DataFrame, objectives: pd.DataFra
                 display:flex;
                 align-items:center;
                 justify-content:center;
-                background:#f8fafc;
-                border:1px solid #e5e7eb;
-            ">{ip_index:.4f}</div>
+                background:#eff6ff;
+                border:1px solid #bfdbfe;
+                color:#1e3a8a;
+                font-weight:700;
+            ">{strategic_index:.4f}</div>
             """,
             unsafe_allow_html=True,
         )
+        alignment_text = "; ".join(
+            f"{perspective}: {normalized_memberships[perspective]:.2f}"
+            for perspective in perspective_options
+            if normalized_memberships[perspective] > 0
+        )
+        row_data = {
+            "Acao/Projeto": project,
+            "Objetivo estrategico": "",
+            "Objetivo/KPI": "",
+            "Perspectiva": dominant_perspective,
+            "Natureza": nature,
+            "Impacto": impact,
+            "Probabilidade": probability,
+            "Classe I/P": classification,
+            "Indice I/P": ip_index,
+            "Indice estrategico": round(strategic_index, 6),
+            "Aderencia fuzzy": alignment_text,
+        }
+        for perspective, value in normalized_memberships.items():
+            row_data[f"Aderencia - {perspective}"] = round(value, 6)
         rows.append(
-            {
-                "Acao/Projeto": project,
-                "Objetivo estrategico": objective,
-                "Objetivo/KPI": objective,
-                "Natureza": nature,
-                "Impacto": impact,
-                "Probabilidade": probability,
-                "Classe I/P": classification,
-                "Indice I/P": ip_index,
-            }
+            row_data
         )
 
     linked = pd.DataFrame(rows).dropna(how="all").fillna("").reset_index(drop=True)
-    objective_weight_map = {}
-    objective_weights = st.session_state.get("objective_weights", pd.DataFrame())
-    if (
-        isinstance(objective_weights, pd.DataFrame)
-        and not objective_weights.empty
-        and "Perspectiva dominante" in objective_weights.columns
-    ):
-        objective_weight_map = dict(zip(objective_weights["Objetivo estrategico"], objective_weights["Perspectiva dominante"]))
-    linked["Perspectiva"] = linked["Objetivo estrategico"].map(objective_weight_map).fillna("")
     st.session_state.projects = linked
     return linked
 
 
 def objective_comparison_inputs(objectives: pd.DataFrame) -> dict[str, list[pd.DataFrame]]:
-    st.subheader("5. Comparacao SAPEVO-M dos objetivos/indicadores por perspectiva")
+    st.subheader("5. Comparacao dos objetivos/indicadores por perspectiva")
     st.caption("Para cada perspectiva BSC, cada decisor compara os objetivos/indicadores entre si.")
     if objectives.empty:
         st.warning("Cadastre objetivos estrategicos antes de comparar objetivos/KPIs.")
@@ -621,6 +651,7 @@ def objective_weight_consolidation_inputs(
         weight_result = consolidate_sapevo_weights(perspective_matrices)
         objective_result = consolidate_objective_scores_by_perspective(objectives, weight_result.weights, objective_matrices)
         st.session_state.weights = weight_result.weights
+        st.session_state.perspective_evaluator_vectors = weight_result.evaluator_vectors
         st.session_state.objective_weights = objective_result.project_weights
         st.success("Pesos dos objetivos/indicadores consolidados.")
 
@@ -630,14 +661,34 @@ def objective_weight_consolidation_inputs(
         st.markdown("#### Pesos das perspectivas BSC")
         col1, col2 = st.columns([1.1, 1])
         with col1:
-            st.dataframe(weights, use_container_width=True, hide_index=True)
+            visible_weights = weights[[column for column in ["Perspectiva", "Peso"] if column in weights.columns]]
+            st.dataframe(visible_weights, use_container_width=True, hide_index=True)
         with col2:
             st.markdown(radar_svg(weights), unsafe_allow_html=True)
 
+        evaluator_vectors = st.session_state.get("perspective_evaluator_vectors", pd.DataFrame())
+        if isinstance(evaluator_vectors, pd.DataFrame) and not evaluator_vectors.empty:
+            stats = calculate_consensus_stats(evaluator_vectors)
+            st.markdown("#### Estatistica de consenso entre decisores")
+            st.dataframe(stats.summary, use_container_width=True, hide_index=True)
+            st.info(stats.interpretation)
+            with st.expander("Dispersao dos pesos por perspectiva", expanded=False):
+                st.dataframe(stats.dispersion, use_container_width=True, hide_index=True)
+            with st.expander("Ranking individual das perspectivas por decisor", expanded=False):
+                st.dataframe(stats.evaluator_rankings, use_container_width=True, hide_index=True)
+
     if not objective_weights.empty:
-        st.markdown("#### Matriz global objetivo x perspectiva e ranking dos objetivos")
-        st.caption("Peso final do objetivo/KPI = soma da pontuacao do objetivo em cada perspectiva multiplicada pelo peso da perspectiva.")
-        st.dataframe(objective_weights, use_container_width=True, hide_index=True)
+        compact_columns = [
+            column
+            for column in ["Objetivo estrategico", "Perspectiva dominante", "Peso SAPEVO-BSC", "Ranking objetivo"]
+            if column in objective_weights.columns
+        ]
+        st.markdown("#### Indice estrategico dos objetivos")
+        st.caption("Resumo do indice consolidado dos objetivos. A matriz detalhada fica recolhida para consulta metodologica.")
+        st.dataframe(objective_weights[compact_columns], use_container_width=True, hide_index=True)
+        with st.expander("Matriz global objetivo x perspectiva", expanded=False):
+            hidden_columns = [column for column in objective_weights.columns if "(%)" not in column and column != "Peso objetivo"]
+            st.dataframe(objective_weights[hidden_columns], use_container_width=True, hide_index=True)
     else:
         st.info("Consolide os pesos dos objetivos para usar esses valores na etapa de projetos.")
 
@@ -659,11 +710,11 @@ def main() -> None:
     if weights.empty or objective_weights.empty:
         return
 
-    projects = project_objective_link_inputs(st.session_state.projects, objectives)
+    projects = project_objective_link_inputs(st.session_state.projects, weights)
 
     st.subheader("8. Ranking dos projetos estrategicos")
     if st.button("Consolidar ranking dos projetos", type="primary"):
-        project_weights = calculate_project_weights_from_objectives(projects, objective_weights)
+        project_weights = calculate_project_weights_from_perspective_alignment(projects, weights)
         ranking = rank_projects(projects, weights, project_weights)
         st.session_state.project_weights = project_weights
         st.session_state.ranking = ranking
@@ -672,9 +723,21 @@ def main() -> None:
     project_weights = st.session_state.project_weights
     ranking = st.session_state.ranking
     if not project_weights.empty:
-        st.subheader("Pesos SAPEVO-BSC das acoes/projetos")
-        st.caption("Cada acao/projeto herda o peso SAPEVO-BSC do objetivo/KPI ao qual foi vinculada.")
-        st.dataframe(project_weights, use_container_width=True, hide_index=True)
+        st.subheader("Indice estrategico fuzzy das acoes/projetos")
+        st.caption("Cada acao/projeto recebe um indice proporcional conforme sua aderencia fuzzy as perspectivas BSC.")
+        compact_project_weight_columns = [
+            column
+            for column in ["Projeto", "Aderencia fuzzy", "Perspectiva", "Indice estrategico"]
+            if column in project_weights.columns
+        ]
+        st.dataframe(project_weights[compact_project_weight_columns], use_container_width=True, hide_index=True)
+        with st.expander("Detalhes tecnicos do indice estrategico fuzzy", expanded=False):
+            technical_columns = [
+                column
+                for column in project_weights.columns
+                if "(%)" not in column and column not in {"Projeto/KPI", "Objetivo/KPI", "Peso local SAPEVO-M"}
+            ]
+            st.dataframe(project_weights[technical_columns], use_container_width=True, hide_index=True)
 
     if not ranking.empty:
         st.subheader("Ranking dos projetos estrategicos")
