@@ -502,23 +502,15 @@ def calculate_project_weights_from_perspective_alignment(
             raw_value = project.get(f"Aderencia - {perspective}", 0.0)
             memberships[perspective] = max(0.0, min(1.0, float(raw_value or 0.0)))
 
-        total_membership = sum(memberships.values())
-        if total_membership > 0:
-            normalized_memberships = {
-                perspective: value / total_membership
-                for perspective, value in memberships.items()
-            }
-        else:
-            normalized_memberships = {
-                perspective: 1.0 / len(perspective_names)
-                for perspective in perspective_names
-            }
-
         strategic_index = sum(
-            normalized_memberships[perspective] * weight_map[perspective]
+            memberships[perspective] * weight_map[perspective]
             for perspective in perspective_names
         )
-        dominant_perspective = max(normalized_memberships, key=normalized_memberships.get) if normalized_memberships else ""
+        dominant_perspective = (
+            max(memberships, key=memberships.get)
+            if memberships and max(memberships.values()) > 0
+            else ""
+        )
 
         row = {
             "Projeto": name,
@@ -526,17 +518,17 @@ def calculate_project_weights_from_perspective_alignment(
             "Projeto/KPI": name,
             "Perspectiva": dominant_perspective,
             "Peso perspectiva": round(float(weight_map.get(dominant_perspective, 0.0)), 6),
-            "Peso local SAPEVO-M": round(float(normalized_memberships.get(dominant_perspective, 0.0)), 6),
+            "Peso local SAPEVO-M": round(float(memberships.get(dominant_perspective, 0.0)), 6),
             "Peso SAPEVO-BSC": round(strategic_index, 6),
             "Indice estrategico": round(strategic_index, 6),
             "Aderencia fuzzy": "; ".join(
-                f"{perspective}: {normalized_memberships[perspective]:.2f}"
+                f"{perspective}: {memberships[perspective]:.2f}"
                 for perspective in perspective_names
-                if normalized_memberships[perspective] > 0
+                if memberships[perspective] > 0
             ),
         }
         for perspective in perspective_names:
-            row[perspective] = round(normalized_memberships[perspective], 6)
+            row[perspective] = round(memberships[perspective], 6)
         rows.append(row)
 
     return pd.DataFrame(rows).sort_values(
