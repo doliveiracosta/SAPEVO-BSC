@@ -698,8 +698,7 @@ def impact_probability_classification(nature: str, impact: str, probability: str
 
 
 def impact_probability_index(nature: str, impact: str, probability: str) -> float:
-    classification = impact_probability_classification(nature, impact, probability)
-    return float(IMPACT_PROBABILITY_CLASS_VALUES.get(classification, 0.0))
+    return scale_value(impact) * scale_value(probability)
 
 
 def rank_projects(projects: pd.DataFrame, weights: pd.DataFrame, project_weights: pd.DataFrame | None = None) -> pd.DataFrame:
