@@ -465,7 +465,7 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
         ip_index = round(impact_probability_index(nature, impact, probability), 4)
         raw_memberships = {}
         with st.expander(f"Aderencia fuzzy de {project} as perspectivas BSC", expanded=False):
-            st.caption("Use valores de 0 a 1. O calculo normaliza automaticamente a linha para fechar 100%.")
+            st.caption("Use valores de 0 a 1. O indice estrategico usa a intensidade informada em cada perspectiva, sem normalizar automaticamente.")
             slider_cols = st.columns(min(4, len(perspective_options)))
             for perspective_index, perspective in enumerate(perspective_options):
                 value = float(row.get(f"Aderencia - {perspective}", 1.0 if perspective_index == 0 else 0.0) or 0.0)
@@ -479,24 +479,21 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
                         key=f"project_alignment_{stable_key(index, project, perspective)}",
                     )
             raw_total = sum(raw_memberships.values())
-            st.progress(min(raw_total, 1.0), text=f"Soma informada: {raw_total:.2f}")
+            st.caption(f"Soma das aderencias informadas: {raw_total:.2f}")
 
-        total_membership = sum(raw_memberships.values())
-        if total_membership > 0:
-            normalized_memberships = {
-                perspective: value / total_membership
-                for perspective, value in raw_memberships.items()
-            }
-        else:
-            normalized_memberships = {
-                perspective: 1.0 / len(perspective_options)
-                for perspective in perspective_options
-            }
+        effective_memberships = {
+            perspective: max(0.0, min(1.0, float(value or 0.0)))
+            for perspective, value in raw_memberships.items()
+        }
         strategic_index = sum(
-            normalized_memberships[perspective] * float(perspective_weight_map.get(perspective, 0.0))
+            effective_memberships[perspective] * float(perspective_weight_map.get(perspective, 0.0))
             for perspective in perspective_options
         )
-        dominant_perspective = max(normalized_memberships, key=normalized_memberships.get) if normalized_memberships else ""
+        dominant_perspective = (
+            max(effective_memberships, key=effective_memberships.get)
+            if effective_memberships and max(effective_memberships.values()) > 0
+            else ""
+        )
         color = RISK_CLASS_COLORS.get(classification, "#e5e7eb")
         col5.markdown(
             f"""
@@ -515,9 +512,9 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
             unsafe_allow_html=True,
         )
         alignment_text = "; ".join(
-            f"{perspective}: {normalized_memberships[perspective]:.2f}"
+            f"{perspective}: {effective_memberships[perspective]:.2f}"
             for perspective in perspective_options
-            if normalized_memberships[perspective] > 0
+            if effective_memberships[perspective] > 0
         )
         row_data = {
             "Acao/Projeto": project,
@@ -532,7 +529,7 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
             "Indice estrategico": round(strategic_index, 6),
             "Aderencia fuzzy": alignment_text,
         }
-        for perspective, value in normalized_memberships.items():
+        for perspective, value in effective_memberships.items():
             row_data[f"Aderencia - {perspective}"] = round(value, 6)
         rows.append(
             row_data
@@ -729,13 +726,6 @@ def main() -> None:
             if column in visible_ranking.columns
         ]
         st.dataframe(visible_ranking[ranking_columns], use_container_width=True, hide_index=True)
-        with st.expander("Detalhes tecnicos do ranking", expanded=False):
-            technical_ranking_columns = [
-                column
-                for column in ranking.columns
-                if column not in {"Objetivo/KPI"}
-            ]
-            st.dataframe(ranking[technical_ranking_columns], use_container_width=True, hide_index=True)
         st.info(strategic_conclusion(ranking, weights))
 
         report = pdf_bytes(

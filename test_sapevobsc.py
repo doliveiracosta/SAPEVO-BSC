@@ -220,6 +220,28 @@ class SAPEVOBSCTests(unittest.TestCase):
         self.assertAlmostEqual(float(result.iloc[0]["Peso SAPEVO-BSC"]), expected, places=6)
         self.assertEqual(result.iloc[0]["Perspectiva"], "Clientes")
 
+    def test_project_weight_does_not_normalize_perspective_alignment(self):
+        perspective_weights = pd.DataFrame(
+            {
+                "Perspectiva": ["Financeira", "Clientes"],
+                "Peso": [0.5, 0.5],
+            }
+        )
+        projects = pd.DataFrame(
+            [
+                {"Acao/Projeto": "P1", "Aderencia - Financeira": 0.2, "Aderencia - Clientes": 0.2},
+                {"Acao/Projeto": "P2", "Aderencia - Financeira": 0.8, "Aderencia - Clientes": 0.8},
+            ]
+        )
+
+        result = calculate_project_weights_from_perspective_alignment(projects, perspective_weights)
+        p1 = result[result["Projeto"] == "P1"].iloc[0]
+        p2 = result[result["Projeto"] == "P2"].iloc[0]
+
+        self.assertAlmostEqual(float(p1["Peso SAPEVO-BSC"]), 0.2, places=6)
+        self.assertAlmostEqual(float(p2["Peso SAPEVO-BSC"]), 0.8, places=6)
+        self.assertGreater(float(p2["Peso SAPEVO-BSC"]), float(p1["Peso SAPEVO-BSC"]))
+
 
 if __name__ == "__main__":
     unittest.main()
