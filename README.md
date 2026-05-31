@@ -9,22 +9,20 @@ Artigo de referencia: https://www.researchgate.net/publication/390109234_SAPEVO-
 ## Fluxo metodologico
 
 1. Registrar o projeto, horizonte e visao do negocio.
-2. Usar as quatro perspectivas BSC como estrutura fixa interna do metodo.
-3. Definir a quantidade de acoes/projetos estrategicos e, em campo recolhido, associar cada item a uma perspectiva BSC principal.
-4. Definir a quantidade de objetivos estrategicos e associar cada objetivo a uma perspectiva BSC em caixa de selecao.
-5. Distribuir fuzzy o alinhamento de cada acao/projeto entre os objetivos estrategicos, com soma 1,00.
-6. Cadastrar avaliadores.
-7. Comparar perspectivas por escala ordinal SAPEVO-M.
-8. Consolidar pesos das perspectivas e pesos globais dos objetivos.
-9. Calcular o peso SAPEVO-BSC de cada acao/projeto pela particao fuzzy ponderada.
-10. Avaliar impacto e probabilidade.
-11. Calcular ranking de prioridade e exportar relatorio PDF.
+2. Definir os objetivos/indicadores estrategicos que serao tratados como alternativas.
+3. Cadastrar decisores/avaliadores.
+4. Comparar perspectivas BSC por escala ordinal SAPEVO-M.
+5. Para cada perspectiva BSC, comparar os objetivos/indicadores por escala ordinal SAPEVO-M.
+6. Consolidar a matriz global objetivo x perspectiva e calcular o peso final de cada objetivo.
+7. Cadastrar cada acao/projeto, vincular ao objetivo/indicador estrategico correspondente e avaliar impacto/probabilidade com classe I/P calculada automaticamente.
+8. Calcular o ranking de prioridade dos projetos e exportar relatorio PDF.
 
 ## Formula operacional
 
 ```text
-Peso do objetivo = Peso da perspectiva BSC distribuido igualmente entre os objetivos associados a essa perspectiva
-Peso SAPEVO-BSC do projeto = soma(pertinencia fuzzy ao objetivo x Peso do objetivo)
+Matriz global = pontuacao SAPEVO-M de cada objetivo/KPI em cada perspectiva BSC
+Peso do objetivo/KPI = soma(pontuacao do objetivo na perspectiva x peso da perspectiva)
+Peso SAPEVO-BSC do projeto = Peso SAPEVO-BSC do objetivo/KPI vinculado ao projeto
 Indice I/P = valor da classe obtida na matriz Impacto/Probabilidade
 Indice de prioridade = Peso SAPEVO-BSC do projeto x Indice I/P
 ```

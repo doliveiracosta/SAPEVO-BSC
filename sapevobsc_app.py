@@ -124,6 +124,13 @@ def render_cover() -> None:
             font-size: 0.82rem;
             background: #f9fafb;
         }
+        .cover-subtitle {
+            margin: 0.85rem 0 0.2rem;
+            color: #475569;
+            font-size: 1.45rem;
+            font-weight: 650;
+            line-height: 1.25;
+        }
         .usage-guide {
             margin: 0.2rem 0 1.1rem;
             color: #4b5563;
@@ -205,7 +212,12 @@ def render_cover() -> None:
     st.markdown(f'<div class="institutional-logos">{"".join(logo_items)}</div>', unsafe_allow_html=True)
 
     st.title(APP_NAME)
-    st.markdown(f"### {APP_SUBTITLE}")
+    st.markdown(
+        f"""
+        <div class="cover-subtitle">{APP_SUBTITLE}</div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.markdown(f"**{APP_OWNER_LABEL}**")
     orcid_icon = f'<img src="{asset_data_uri(logo_orcid)}" alt="ORCID">' if logo_orcid else ""
     linkedin_icon = f'<img src="{asset_data_uri(logo_linkedin)}" alt="LinkedIn">' if logo_linkedin else ""

@@ -10,6 +10,7 @@ assets/
 README_SAPEVOBSC.md
 DEPLOYMENT_SAPEVOBSC.md
 requirements_sapevobsc.txt
+requirements.txt
 tests/test_sapevobsc.py
 ```
 
