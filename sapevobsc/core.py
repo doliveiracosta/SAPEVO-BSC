@@ -786,5 +786,9 @@ def strategic_conclusion(ranking: pd.DataFrame, weights: pd.DataFrame) -> str:
     return (
         f"A priorizacao indica uma carteira {intensity}, com maior peso estrategico associado a "
         f"{leading_perspective}. A acao/projeto mais prioritaria e {top['Projeto']}, vinculada a "
-        f"{top['Perspectiva']}, combinando peso estrategico, impacto e probabilidade."
+        f"{top['Perspectiva']}, combinando peso estrategico, impacto e probabilidade. "
+        "A leitura deve distinguir dois horizontes: os objetivos estrategicos representam direcoes "
+        "de longo prazo para o negocio, enquanto a matriz Impacto/Probabilidade funciona como uma "
+        "camada operacional de curto prazo, orientando quais acoes/projetos devem receber prioridade "
+        "imediata de execucao."
     )

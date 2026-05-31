@@ -1,7 +1,7 @@
 """Constants for the SAPEVO-BSC prioritizer."""
 
 APP_NAME = "SAPEVO-BSC Prioritizer"
-APP_SUBTITLE = "Priorizacao estrategica com SAPEVO-BSC"
+APP_SUBTITLE = "Apoio a tomada de decisao estrategica com metodo multicriterio SAPEVO-BSC"
 APP_OWNER = "David de Oliveira Costa"
 APP_OWNER_LABEL = f"Desenvolvido por {APP_OWNER}, Doutorando em Engenharia de Computacao, 2026."
 

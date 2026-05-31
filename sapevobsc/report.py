@@ -149,7 +149,7 @@ def write_pdf_report(
             )
         )
         story.append(Spacer(1, 6))
-        project_weight_rows = [["Acao/Projeto", "Aderencia fuzzy", "Perspectiva dominante", "Indice estrategico"]]
+        project_weight_rows = [["Acao/Projeto", "Aderencia fuzzy", "Maior contribuicao", "Indice estrategico"]]
         for _, row in project_weights.iterrows():
             project_weight_rows.append(
                 [
