@@ -13,7 +13,6 @@ import streamlit as st
 from sapevobsc.constants import (
     APP_NAME,
     APP_OWNER_LABEL,
-    APP_SUBTITLE,
     BSC_PERSPECTIVES,
     IMPACT_PROBABILITY_SCALE,
     PROJECT_NATURES,
@@ -36,6 +35,16 @@ from sapevobsc.report import pdf_bytes
 PAPER_URL = "https://www.researchgate.net/publication/390109234_SAPEVO-BSC_Multicriteria_Method"
 ORCID_URL = "https://orcid.org/0000-0002-6138-7451"
 LINKEDIN_URL = "https://linkedin.com/in/daviddeoliveiracosta"
+STEPS = [
+    "Projeto",
+    "Objetivos",
+    "Avaliadores",
+    "Perspectivas",
+    "Objetivos x Perspectivas",
+    "Consolidacao",
+    "Acoes",
+    "Ranking",
+]
 
 
 def asset_data_uri(path: Path) -> str:
@@ -88,9 +97,27 @@ def init_state() -> None:
         "fuzzy_alignment": pd.DataFrame(),
         "project_weights": pd.DataFrame(),
         "ranking": pd.DataFrame(),
+        "perspective_matrices": [],
+        "objective_matrices": {},
+        "current_step": 0,
+        "notice": "",
     }
     for key, value in defaults.items():
         st.session_state.setdefault(key, value)
+
+
+def go_to_step(index: int, notice: str = "") -> None:
+    st.session_state.current_step = max(0, min(index, len(STEPS) - 1))
+    st.session_state.notice = notice
+    st.rerun()
+
+
+def go_next(notice: str = "") -> None:
+    go_to_step(st.session_state.current_step + 1, notice)
+
+
+def go_previous() -> None:
+    go_to_step(st.session_state.current_step - 1)
 
 
 def render_cover() -> None:
@@ -174,6 +201,14 @@ def render_cover() -> None:
             object-fit: contain;
             display: inline-block;
         }
+        .step-shell {
+            margin: 0.75rem 0 1.25rem;
+        }
+        .step-label {
+            color: #6b7280;
+            font-size: 0.82rem;
+            margin-bottom: 0.35rem;
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -213,8 +248,10 @@ def render_cover() -> None:
 
     st.title(APP_NAME)
     st.markdown(
-        f"""
-        <div class="cover-subtitle">{APP_SUBTITLE}</div>
+        """
+        <div class="cover-subtitle">
+            Apoio a tomada de decisao estrategica com metodo multicriterio SAPEVO-BSC
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -254,6 +291,36 @@ def render_cover() -> None:
     )
 
 
+def render_step_navigation() -> int:
+    current = int(st.session_state.current_step)
+    st.markdown('<div class="step-shell">', unsafe_allow_html=True)
+    st.markdown('<div class="step-label">Etapa</div>', unsafe_allow_html=True)
+    selected = st.radio(
+        "Etapa",
+        options=STEPS,
+        index=current,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    selected_index = STEPS.index(selected)
+    if selected_index != current:
+        st.session_state.current_step = selected_index
+        st.session_state.notice = ""
+        st.rerun()
+    st.progress((current + 1) / len(STEPS), text=f"Etapa {current + 1} de {len(STEPS)}")
+    st.markdown("</div>", unsafe_allow_html=True)
+    if st.session_state.notice:
+        st.success(st.session_state.notice)
+        st.session_state.notice = ""
+    return current
+
+
+def render_back_button() -> None:
+    if st.session_state.current_step > 0:
+        if st.button("Voltar etapa", key=f"back_{st.session_state.current_step}"):
+            go_previous()
+
+
 def project_inputs() -> None:
     st.subheader("1. Visao do negocio e contexto")
     project = st.session_state.project
@@ -266,6 +333,9 @@ def project_inputs() -> None:
         project["Horizonte estrategico"] = st.text_input("Horizonte estrategico", project.get("Horizonte estrategico", "12 meses"))
     project["Visao do negocio"] = st.text_area("Visao do negocio", project.get("Visao do negocio", ""), height=90)
     st.session_state.project = project
+    if st.button("Salvar contexto", type="primary"):
+        go_next("Contexto salvo. Avancamos para os objetivos/indicadores.")
+    render_back_button()
 
 
 def objective_inputs() -> pd.DataFrame:
@@ -308,6 +378,9 @@ def objective_inputs() -> pd.DataFrame:
 
     edited = pd.DataFrame(rows).dropna(how="all").fillna("").reset_index(drop=True)
     st.session_state.objectives = edited
+    if st.button("Salvar objetivos", type="primary"):
+        go_next("Objetivos/indicadores salvos. Avancamos para os avaliadores.")
+    render_back_button()
     return edited
 
 
@@ -325,6 +398,9 @@ def evaluator_inputs() -> None:
         with cols[index % len(cols)]:
             names.append(st.text_input(f"Avaliador {index + 1}", current, key=f"sapevo_eval_{index}"))
     st.session_state.evaluators = names
+    if st.button("Salvar avaliadores", type="primary"):
+        go_next("Avaliadores salvos. Avancamos para a comparacao das perspectivas.")
+    render_back_button()
 
 
 def comparison_inputs() -> list[pd.DataFrame]:
@@ -333,6 +409,7 @@ def comparison_inputs() -> list[pd.DataFrame]:
     perspectives = st.session_state.perspectives
     if len(perspectives) < 2:
         st.warning("Informe ao menos duas perspectivas.")
+        render_back_button()
         return []
 
     matrices = []
@@ -352,6 +429,10 @@ def comparison_inputs() -> list[pd.DataFrame]:
                     )
                     comparisons[(item_i, item_j)] = SAPEVO_SCALE[label]
             matrices.append(build_pairwise_matrix(perspectives, comparisons))
+    if st.button("Salvar comparacao das perspectivas", type="primary"):
+        st.session_state.perspective_matrices = matrices
+        go_next("Comparacao das perspectivas salva. Avancamos para os objetivos por perspectiva.")
+    render_back_button()
     return matrices
 
 
@@ -384,6 +465,7 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
     st.caption("Distribua a aderencia fuzzy de cada acao/projeto entre as perspectivas BSC e avalie natureza, impacto e probabilidade.")
     if weights.empty:
         st.warning("Consolide os pesos das perspectivas antes de avaliar projetos.")
+        render_back_button()
         return projects
 
     perspective_options = [
@@ -392,6 +474,7 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
         if str(item).strip()
     ]
     if not perspective_options:
+        render_back_button()
         return projects
 
     if projects.empty:
@@ -548,6 +631,10 @@ def project_objective_link_inputs(projects: pd.DataFrame, weights: pd.DataFrame)
 
     linked = pd.DataFrame(rows).dropna(how="all").fillna("").reset_index(drop=True)
     st.session_state.projects = linked
+    if st.button("Salvar acoes/projetos", type="primary"):
+        st.session_state.projects = linked
+        go_next("Acoes/projetos salvos. Avancamos para o ranking final.")
+    render_back_button()
     return linked
 
 
@@ -556,6 +643,7 @@ def objective_comparison_inputs(objectives: pd.DataFrame) -> dict[str, list[pd.D
     st.caption("Para cada perspectiva BSC, cada decisor compara os objetivos/indicadores entre si.")
     if objectives.empty:
         st.warning("Cadastre objetivos estrategicos antes de comparar objetivos/KPIs.")
+        render_back_button()
         return {}
 
     items = [
@@ -592,6 +680,11 @@ def objective_comparison_inputs(objectives: pd.DataFrame) -> dict[str, list[pd.D
                         comparisons[(item_i, item_j)] = SAPEVO_SCALE[label]
                 evaluator_matrices.append(build_pairwise_matrix(items, comparisons))
             matrices_by_perspective[perspective] = evaluator_matrices
+
+    if st.button("Salvar comparacoes dos objetivos", type="primary"):
+        st.session_state.objective_matrices = matrices_by_perspective
+        go_next("Comparacoes dos objetivos salvas. Avancamos para a consolidacao dos pesos.")
+    render_back_button()
 
     return matrices_by_perspective
 
@@ -637,6 +730,14 @@ def objective_weight_consolidation_inputs(
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     st.subheader("6. Consolidacao dos pesos dos objetivos/indicadores")
     st.caption("Gere a matriz global objetivo x perspectiva antes de vincular projetos e avaliar impacto/probabilidade.")
+    if not perspective_matrices:
+        st.warning("Salve a comparacao das perspectivas antes de consolidar os pesos.")
+        render_back_button()
+        return st.session_state.weights, st.session_state.objective_weights
+    if not objective_matrices:
+        st.warning("Salve as comparacoes dos objetivos por perspectiva antes de consolidar os pesos.")
+        render_back_button()
+        return st.session_state.weights, st.session_state.objective_weights
 
     if st.button("Consolidar pesos dos objetivos", type="primary"):
         weight_result = consolidate_sapevo_weights(perspective_matrices)
@@ -644,7 +745,7 @@ def objective_weight_consolidation_inputs(
         st.session_state.weights = weight_result.weights
         st.session_state.perspective_evaluator_vectors = weight_result.evaluator_vectors
         st.session_state.objective_weights = objective_result.project_weights
-        st.success("Pesos dos objetivos/indicadores consolidados.")
+        go_next("Pesos dos objetivos/indicadores consolidados. Avancamos para acoes/projetos.")
 
     weights = st.session_state.weights
     objective_weights = st.session_state.objective_weights
@@ -697,27 +798,33 @@ def objective_weight_consolidation_inputs(
     else:
         st.info("Consolide os pesos dos objetivos para usar esses valores na etapa de projetos.")
 
+    if not weights.empty and not objective_weights.empty:
+        left, right = st.columns([1.2, 5])
+        with left:
+            if st.button("Ir para acoes", type="primary"):
+                go_next("Avancamos para a etapa de acoes/projetos.")
+        with right:
+            render_back_button()
+    else:
+        render_back_button()
+
     return weights, objective_weights
 
 
-def main() -> None:
-    st.set_page_config(page_title=APP_NAME, layout="wide")
-    init_state()
-    render_cover()
-
-    project_inputs()
-    perspective_inputs()
-    objectives = objective_inputs()
-    evaluator_inputs()
-    perspective_matrices = comparison_inputs()
-    objective_matrices = objective_comparison_inputs(objectives)
-    weights, objective_weights = objective_weight_consolidation_inputs(objectives, perspective_matrices, objective_matrices)
+def ranking_outputs() -> None:
+    st.subheader("8. Ranking dos projetos estrategicos")
+    weights = st.session_state.weights
+    objective_weights = st.session_state.objective_weights
+    projects = st.session_state.projects
     if weights.empty or objective_weights.empty:
+        st.warning("Consolide os pesos dos objetivos antes de calcular o ranking.")
+        render_back_button()
+        return
+    if projects.empty:
+        st.warning("Cadastre ao menos uma acao/projeto antes de calcular o ranking.")
+        render_back_button()
         return
 
-    projects = project_objective_link_inputs(st.session_state.projects, weights)
-
-    st.subheader("8. Ranking dos projetos estrategicos")
     if st.button("Consolidar ranking dos projetos", type="primary"):
         project_weights = calculate_project_weights_from_perspective_alignment(projects, weights)
         ranking = rank_projects(projects, weights, project_weights)
@@ -765,6 +872,36 @@ def main() -> None:
             mime="application/pdf",
             type="primary",
         )
+    render_back_button()
+
+
+def main() -> None:
+    st.set_page_config(page_title=APP_NAME, layout="wide")
+    init_state()
+    render_cover()
+    perspective_inputs()
+    current_step = render_step_navigation()
+
+    if current_step == 0:
+        project_inputs()
+    elif current_step == 1:
+        objective_inputs()
+    elif current_step == 2:
+        evaluator_inputs()
+    elif current_step == 3:
+        comparison_inputs()
+    elif current_step == 4:
+        objective_comparison_inputs(st.session_state.objectives)
+    elif current_step == 5:
+        objective_weight_consolidation_inputs(
+            st.session_state.objectives,
+            st.session_state.perspective_matrices,
+            st.session_state.objective_matrices,
+        )
+    elif current_step == 6:
+        project_objective_link_inputs(st.session_state.projects, st.session_state.weights)
+    else:
+        ranking_outputs()
 
 
 if __name__ == "__main__":
